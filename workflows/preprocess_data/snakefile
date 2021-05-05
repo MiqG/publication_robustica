@@ -1,0 +1,68 @@
+"""
+
+Workflow purpose
+----------------
+Preprocess raw data.
+
+Outline
+-------
+1. Combine TCGA clinical and survival data into full metadata.
+2. Subset TCGA PANCAN gene expression matrix by cancer type.
+"""
+
+import os
+
+##### VARIABLES #####
+ROOT = '/home/miquel/projects/publication_robustica'
+DATA_DIR = os.path.join(ROOT,'data')
+RAW_DIR = os.path.join(DATA_DIR,'raw')
+PREP_DIR = os.path.join(DATA_DIR,'prep')
+
+CANCER_TYPES = ['BRCA']
+    
+##### RULES #####
+rule all:
+    input:
+        # create metadata
+        [os.path.join(PREP_DIR,'TCGA','metadata','%s.tsv') % cancer for cancer in CANCER_TYPES],
+        
+        # split by cancer type
+        expand(os.path.join(PREP_DIR,'TCGA','genexpr','{cancer}.tsv.gz'), cancer=CANCER_TYPES)
+    
+rule prepare_metadata:
+    input:
+        clinical = os.path.join(RAW_DIR,'UCSCXena','TCGA','phenotype','TCGA_phenotype_denseDataOnlyDownload.tsv.gz'),
+        survival = os.path.join(RAW_DIR,'UCSCXena','TCGA','phenotype','Survival_SupplementalTable_S1_20171025_xena_sp.gz')
+    output:
+        [os.path.join(PREP_DIR,'TCGA','metadata','%s.tsv') % cancer for cancer in CANCER_TYPES]
+    params:
+        output_dir = os.path.join(PREP_DIR,'TCGA','metadata')
+    shell:
+        """
+        python scripts/prepare_metadata.py \
+                    --raw_tcga_clinical={input.clinical} \
+                    --raw_tcga_survival={input.survival} \
+                    --output_dir={params.output_dir}
+        """
+        
+        
+rule prepare_genexpr:
+    input:
+        genexpr = os.path.join(RAW_DIR,'UCSCXena','TCGA','rnaseq','AdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.xena.gz'),
+        metadata = os.path.join(PREP_DIR,'TCGA','metadata','PANCAN.tsv')
+    output:
+        os.path.join(PREP_DIR,'TCGA','genexpr','{cancer}.tsv.gz')
+    params:
+        sample_col = 'sampleID',
+        subset_col = 'cancer_type',
+        subset_values = '{cancer}'
+    shell:
+        """
+        python scripts/prepare_genexpr.py \
+                    --genexpr_file={input.raw_genexpr} \
+                    --metadata_file={input.metadata} \
+                    --sample_col={params.sample_col} \
+                    --subset_col={params.subset_col} \
+                    --subset_values={params.subset_values} \
+                    --output_file={output}
+        """
