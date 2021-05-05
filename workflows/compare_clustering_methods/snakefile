@@ -1,0 +1,51 @@
+"""
+Workflow purpose
+----------------
+Evaluate the impact of using different clustering algorithms to compute robust ICA.
+
+Outline
+-------
+1. Compute ICA multiple times and save the output.
+2. Cluster ICA iterations using all cluster algorithms available.
+3. Evaluate robust components for every clustering algorithm.
+4. Make figures.
+"""
+
+
+import os
+
+##### VARIABLES #####
+ROOT = '/home/miquel/projects/publication_robustica'
+DATA_DIR = os.path.join(ROOT,'data')
+RAW_DIR = os.path.join(DATA_DIR,'raw')
+PREP_DIR = os.path.join(DATA_DIR,'prep')
+RESULTS_DIR = os.path.join(ROOT,'results','compare_clustering_methods')
+
+CANCER_TYPES = ['LGG']
+CLUSTERING_METHODS = ['DBSCAN']
+
+##### RULES #####
+rule all:
+    input:
+        expand(os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-S.pickle'), cancer=CANCER_TYPES),
+        expand(os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-A.pickle'), cancer=CANCER_TYPES)
+
+        
+rule compute_ica_iterations:
+    input:
+        os.path.join(PREP_DIR,'TCGA','genexpr','{cancer}.tsv.gz')
+    output:
+        S = os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-S.pickle'),
+        A = os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-A.pickle')
+    params:
+        iterations = 100
+    threads: 15
+    shell:
+        """
+        python scripts/compute_ica_iterations.py \
+                    --input_file={input} \
+                    --S_file={output.S} \
+                    --A_file={output.A} \
+                    --iterations={params.iterations} \
+                    --n_jobs={threads}
+        """

@@ -18,7 +18,7 @@ DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 
-CANCER_TYPES = ['BRCA']
+CANCER_TYPES = ['BRCA','LGG']
     
 ##### RULES #####
 rule all:
@@ -59,7 +59,7 @@ rule prepare_genexpr:
     shell:
         """
         python scripts/prepare_genexpr.py \
-                    --genexpr_file={input.raw_genexpr} \
+                    --genexpr_file={input.genexpr} \
                     --metadata_file={input.metadata} \
                     --sample_col={params.sample_col} \
                     --subset_col={params.subset_col} \
