@@ -45,18 +45,6 @@ def process_inputs(input_file):
     X = (X - X.mean(1).values.reshape(-1,1)) / X.std(1).values.reshape(-1,1)
     return X
 
-
-def prepare_summary(rica):
-    # prepare convergence
-    df = pd.DataFrame.from_dict(rica.convergence_, orient='index').T.melt().dropna()
-    df.columns = ['iteration_robustica','convergence_score']
-    df['iteration_ica'] = df.groupby('iteration_robustica').cumcount()
-    df = df.join(pd.Series(rica.time_, name='time_ica'), on='iteration_robustica')
-    df = df.join(pd.Series(rica.n_iter_, name='convergence_n_iter'), on='iteration_robustica')
-    df['max_iter'] = rica.ica.max_iter
-    df['tol'] = rica.ica.tol
-    return df
-
     
 def evaluate_ica_iterations(X, n_components, iterations, n_jobs, max_iter, tol):
     # infer components
@@ -79,7 +67,7 @@ def evaluate_ica_iterations(X, n_components, iterations, n_jobs, max_iter, tol):
     A = pd.DataFrame(A, index=X.columns)
     S_std = pd.DataFrame(rica.S_std, index=X.index)
     A_std = pd.DataFrame(rica.A_std, index=X.columns)
-    summary = prepare_summary(rica)
+    summary = rica.prepare_summary()
     summary['time_robustica'] = seconds
     summary['n_jobs'] = n_jobs
     
