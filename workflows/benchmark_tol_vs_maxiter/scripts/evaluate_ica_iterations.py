@@ -67,11 +67,12 @@ def evaluate_ica_iterations(X, n_components, iterations, n_jobs, max_iter, tol):
     A = pd.DataFrame(A, index=X.columns)
     S_std = pd.DataFrame(rica.S_std, index=X.index)
     A_std = pd.DataFrame(rica.A_std, index=X.columns)
+    clustering_stats = rica.clustering_stats_
     summary = rica.prepare_summary()
     summary['time_robustica'] = seconds
     summary['n_jobs'] = n_jobs
     
-    return S, A, S_std, A_std, summary
+    return S, A, S_std, A_std, summary, clustering_stats
 
 
 def parse_args():
@@ -105,7 +106,7 @@ def main():
     X = process_inputs(input_file)
     
     print('Computing ICA...')
-    S, A, S_std, A_std, summary = evaluate_ica_iterations(X, n_components, iterations, n_jobs, max_iter, tol)
+    S, A, S_std, A_std, summary, clustering_stats = evaluate_ica_iterations(X, n_components, iterations, n_jobs, max_iter, tol)
     
     print('Saving...')
     S.reset_index().to_csv(os.path.join(output_dir,'S.tsv.gz'), **SAVE_PARAMS)
@@ -113,6 +114,7 @@ def main():
     S_std.reset_index().to_csv(os.path.join(output_dir,'S_std.tsv.gz'), **SAVE_PARAMS)
     A_std.reset_index().to_csv(os.path.join(output_dir,'A_std.tsv.gz'), **SAVE_PARAMS)
     summary.to_csv(os.path.join(output_dir,'summary.tsv.gz'), **SAVE_PARAMS)
+    clustering_stats.to_csv(os.path.join(output_dir,'clustering_stats.tsv.gz'), **SAVE_PARAMS)
 
 ##### SCRIPT #####
 if __name__ == "__main__":
