@@ -52,6 +52,5 @@ rule evaluate_ica_iterations:
                     --iterations={params.iterations} \
                     --max_iter={params.max_iter} \
                     --tol={params.tol} \
-                    --n_components=10 \
                     --n_jobs={threads}
         """
