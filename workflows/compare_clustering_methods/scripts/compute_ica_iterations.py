@@ -10,7 +10,6 @@ import argparse
 import pandas as pd
 import numpy as np
 from robustica import RobustICA, InferComponents
-from robustica.examples import sampledata
 
 # variables
 MAX_VARIANCE_EXPLAINED = 0.9

@@ -22,15 +22,38 @@ PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','compare_clustering_methods')
 
 CANCER_TYPES = ['LGG']
-CLUSTERING_METHODS = ['DBSCAN']
+CLUSTERING_METHODS = [
+    # sklearn
+    #"AffinityPropagation",
+    "AgglomerativeClustering",
+    #"Birch",
+    "DBSCAN",
+    #"FeatureAgglomeration",
+    "KMeans",
+    #"MiniBatchKMeans",
+    #"MeanShift",
+    #"OPTICS",
+    #"SpectralClustering",
+    #"SpectralBiclustering",
+    #"SpectralCoclustering",
+    
+    # sklearn_extra
+    "KMedoids",
+    "CommonNNClustering",
+]
+ITERATIONS = 100
 
 ##### RULES #####
 rule all:
     input:
+        # iterate ica
         expand(os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-S.pickle'), cancer=CANCER_TYPES),
-        expand(os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-A.pickle'), cancer=CANCER_TYPES)
-
+        expand(os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-A.pickle'), cancer=CANCER_TYPES),
         
+        # cluster ica iterations
+        expand(os.path.join(RESULTS_DIR,'files','cluster_iterations-{cancer}-{method}'), cancer=CANCER_TYPES, method=CLUSTERING_METHODS)
+        
+
 rule compute_ica_iterations:
     input:
         os.path.join(PREP_DIR,'TCGA','genexpr','{cancer}.tsv.gz')
@@ -38,7 +61,7 @@ rule compute_ica_iterations:
         S = os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-S.pickle'),
         A = os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-A.pickle')
     params:
-        iterations = 100
+        iterations = ITERATIONS
     threads: 15
     shell:
         """
@@ -49,3 +72,29 @@ rule compute_ica_iterations:
                     --iterations={params.iterations} \
                     --n_jobs={threads}
         """
+        
+        
+rule cluster_ica_iterations:
+    input:
+        X = os.path.join(PREP_DIR,'TCGA','genexpr','{cancer}.tsv.gz'),
+        S = os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-S.pickle'),
+        A = os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-A.pickle')
+    output:
+        directory(os.path.join(RESULTS_DIR,'files','cluster_iterations-{cancer}-{method}'))
+    params:
+        method = '{method}',
+        iterations = ITERATIONS
+    threads: 5
+    shell:
+        """
+        python scripts/cluster_ica_iterations.py \
+                    --input_file={input.X} \
+                    --S_all_file={input.S} \
+                    --A_all_file={input.A} \
+                    --method={params.method} \
+                    --iterations={params.iterations} \
+                    --n_jobs={threads} \
+                    --output_dir={output}
+        """
+        
+
