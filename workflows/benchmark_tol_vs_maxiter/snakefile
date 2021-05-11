@@ -1,0 +1,57 @@
+"""
+Workflow purpose
+----------------
+Evaluate the impact of using different clustering algorithms to compute robust ICA.
+
+Outline
+-------
+1. Compute ICA 100 times with different tol and max_iter parameters and save:
+    - running time of every run
+    - number of iterations per run
+    - convergence
+    - clusters
+"""
+
+import os
+
+##### VARIABLES #####
+ROOT = '/home/miquel/projects/publication_robustica'
+DATA_DIR = os.path.join(ROOT,'data')
+RAW_DIR = os.path.join(DATA_DIR,'raw')
+PREP_DIR = os.path.join(DATA_DIR,'prep')
+RESULTS_DIR = os.path.join(ROOT,'results','benchmark_tol_vs_maxiter')
+
+CANCER_TYPES = ['LGG']
+ITERATIONS = 100
+TOLS = ['1e-%s' % t for t in [0,2,3]]
+MAX_ITERS = ['1e%s' % m for m in [1,2,3,4]]
+
+
+##### RULES #####
+rule all:
+    input:
+        # evaluate ica iterations
+        expand(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{cancer}_{max_iter}_{tol}'), max_iter=MAX_ITERS, tol=TOLS, cancer=CANCER_TYPES)
+        
+
+rule evaluate_ica_iterations:
+    input:
+        os.path.join(PREP_DIR,'TCGA','genexpr','{cancer}.tsv.gz')
+    output:
+        directory(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{cancer}_{max_iter}_{tol}'))
+    params:
+        iterations = ITERATIONS,
+        max_iter = '{max_iter}',
+        tol = '{tol}'
+    threads: 15
+    shell:
+        """
+        python scripts/evaluate_ica_iterations.py \
+                    --input_file={input} \
+                    --output_dir={output} \
+                    --iterations={params.iterations} \
+                    --max_iter={params.max_iter} \
+                    --tol={params.tol} \
+                    --n_components=10 \
+                    --n_jobs={threads}
+        """
