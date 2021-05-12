@@ -18,8 +18,8 @@ source(file.path(ROOT,'src','R','utils.R'))
 
 # Development
 # -----------
-TOLS = paste0('1e-',c(0,2,3))
-MAX_ITERS = paste0('1e',c(1,2,3))
+TOLS = paste0('1e-',c(1,2,3,4))
+MAX_ITERS = as.character(c(100,200,500,1000,10000))
 RESULTS_DIR = file.path(ROOT,'results','benchmark_tol_vs_maxiter','files')
 dirnames = as.vector(sapply(TOLS, function(t){sapply(MAX_ITERS, function(m){ sprintf('evaluate_iterations-LGG_%s_%s',m,t) })}))
 
@@ -39,9 +39,7 @@ get_label = function(dir_name){
 
 load_datatype = function(evaluation_dirs, filename, bind=TRUE){
     df = lapply(evaluation_dirs, function(dir_name){
-        lab = get_label(dir_name)
         df = read_tsv(file.path(dir_name, filename))
-        df$params = factor(lab, levels=unique(lab))
         return(df)
     })
     if(bind){ df = do.call(rbind, df) }
@@ -59,8 +57,7 @@ load_components = function(evaluation_dirs, filename, bind=TRUE){
     })
     if(bind){ 
         components = lapply(dfs, function(df) {df[['components']]})
-        components = components %>% 
-                Reduce(function(a,b){left_join(a,b,by='sample')},.)
+        components = components %>% reduce(inner_join, by='sample')
         metadata = lapply(dfs, function(df) {df[['metadata']]})
         metadata = do.call(rbind, metadata)            
     }
@@ -71,12 +68,7 @@ load_components = function(evaluation_dirs, filename, bind=TRUE){
 load_data = function(evaluation_dirs){
     # summary
     summary = load_datatype(evaluation_dirs, filename='summary.tsv.gz')
-    summary = summary %>% 
-        group_by(iteration_robustica, params) %>% 
-        filter(iteration_ica == max(iteration_ica)) %>% 
-        mutate(has_converged = convergence_score < tol) %>% 
-        ungroup()
-    
+    summary = summary %>% mutate(has_converged = convergence_score < tol)
     
     # clustering stats
     clustering_stats = load_datatype(evaluation_dirs, filename='clustering_stats.tsv.gz')
@@ -173,7 +165,7 @@ define_module = function(x){
 plot_components_corr = function(components, metadata){
     
     # init
-    reference = 'max_iter=1e3 & tol=1e-3'
+    reference = 'max_iter=10000 & tol=1e-4'
     queries = setdiff(unique(metadata$params),reference)
     plts = list()
     

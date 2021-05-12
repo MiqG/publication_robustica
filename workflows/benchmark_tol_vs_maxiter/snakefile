@@ -10,6 +10,7 @@ Outline
     - number of iterations per run
     - convergence
     - clusters
+2. make figures
 """
 
 import os
@@ -23,8 +24,8 @@ RESULTS_DIR = os.path.join(ROOT,'results','benchmark_tol_vs_maxiter')
 
 CANCER_TYPES = ['LGG']
 ITERATIONS = 100
-TOLS = ['1e-%s' % t for t in [0,2,3]]
-MAX_ITERS = ['1e%s' % m for m in [1,2,3,4]]
+TOLS = ['1e-%s' % t for t in [1,2,3,4]]
+MAX_ITERS = [str(int(m)) for m in [100,200,500,1e3,1e4]]
 
 
 ##### RULES #####
@@ -53,4 +54,20 @@ rule evaluate_ica_iterations:
                     --max_iter={params.max_iter} \
                     --tol={params.tol} \
                     --n_jobs={threads}
+        """
+
+rule figures_benchmark_robustica:
+    input:
+        [os.path.join(RESULTS_DIR,'files','evaluate_iterations-%s_%s_%s') 
+         for c in CANCER_TYPES for m in MAX_ITERS for t in MAX_TOLS]
+    output:
+        directory(os.path.join(RESULTS_DIR,'figures'))
+    params:
+        evaluation_dirs = ','.join([os.path.join(RESULTS_DIR,'files','evaluate_iterations-%s_%s_%s') 
+         for c in CANCER_TYPES for m in MAX_ITERS for t in MAX_TOLS])
+    shell:
+        """
+        Rscript scripts/figures_benchmark_robustica.R \
+                    --evaluation_dirs={params.evaluation_dirs} \
+                    --figs_dir={output}
         """
