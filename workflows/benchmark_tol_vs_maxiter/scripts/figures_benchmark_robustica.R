@@ -22,7 +22,8 @@ TOLS = paste0('1e-',c(1,2,3,4))
 MAX_ITERS = as.character(c(100,200,500,1000,10000))
 RESULTS_DIR = file.path(ROOT,'results','benchmark_tol_vs_maxiter','files')
 dirnames = as.vector(sapply(TOLS, function(t){sapply(MAX_ITERS, function(m){ sprintf('evaluate_iterations-LGG_%s_%s',m,t) })}))
-
+dirnames = 'evaluate_iterations-LGG_10000_1e-1,evaluate_iterations-LGG_10000_1e-2,evaluate_iterations-LGG_10000_1e-3,evaluate_iterations-LGG_1000_1e-1,evaluate_iterations-LGG_1000_1e-2,evaluate_iterations-LGG_1000_1e-3,evaluate_iterations-LGG_1000_1e-4,evaluate_iterations-LGG_100_1e-1,evaluate_iterations-LGG_100_1e-2,evaluate_iterations-LGG_100_1e-3,evaluate_iterations-LGG_100_1e-4,evaluate_iterations-LGG_200_1e-2,evaluate_iterations-LGG_200_1e-3,evaluate_iterations-LGG_200_1e-4,evaluate_iterations-LGG_500_1e-3,evaluate_iterations-LGG_500_1e-4'
+dirnames = unlist(strsplit(dirnames, ','))
 evaluation_dirs = file.path(RESULTS_DIR,dirnames)
 figs_dir = file.path(ROOT,'results','benchmark_tol_vs_maxiter','figures')
 
@@ -53,12 +54,15 @@ load_components = function(evaluation_dirs, filename, bind=TRUE){
         components = read_tsv(file.path(dir_name, filename)) %>% 
             rename_at(vars(-sample),function(x) paste0(x,'_',lab))
         metadata = data.frame(id=colnames(components), params=lab) %>% filter(id!='sample')
+        gc()
         return(list(components=components, metadata=metadata))
     })
     if(bind){ 
-        components = lapply(dfs, function(df) {df[['components']]})
-        components = components %>% reduce(inner_join, by='sample')
-        metadata = lapply(dfs, function(df) {df[['metadata']]})
+        components = lapply(dfs, function(df){df[['components']]})
+        components = do.call(cbind, components)
+        to_drop = grep('sample',colnames(components))[-1]
+        components = components[,-to_drop]
+        metadata = lapply(dfs, function(df){df[['metadata']]})
         metadata = do.call(rbind, metadata)            
     }
     return(list(components=components, metadata=metadata))
@@ -165,7 +169,7 @@ define_module = function(x){
 plot_components_corr = function(components, metadata){
     
     # init
-    reference = 'max_iter=10000 & tol=1e-4'
+    reference = 'max_iter=10000 & tol=1e-3'
     queries = setdiff(unique(metadata$params),reference)
     plts = list()
     
@@ -173,7 +177,8 @@ plot_components_corr = function(components, metadata){
     comparison = lapply(queries, function(query){
         cols_ref = metadata %>% filter(params %in% reference) %>% pull(id)
         cols_query = metadata %>% filter(params %in% query) %>% pull(id)
-        sim = cor(components[,cols_ref], components[,cols_query], 
+        sim = cor(components[,cols_ref], 
+                  components[,cols_query], 
                   method = "pearson")
         
         # high similarity --> likely to be the "same" component
@@ -256,7 +261,7 @@ save_plot = function(plt, plt_name, extension='.pdf',
 }
 
 
-save_plots = function(plts, figs_dir, params){
+save_plots = function(plts, figs_dir){
     lapply(names(plts), function(plt_name){
         save_plot(plts[[plt_name]] + 
                   theme_pubr(base_size=10, x.text.angle=70),
@@ -276,7 +281,7 @@ main = function(){
     data = load_data(evaluation_dirs)    
     plts = make_plots(data[['summary']], data[['clustering_stats']], 
                       data[['components']], data[['metadata']])
-    save_plots(plts, figs_dir, params)
+    save_plots(plts, figs_dir)
 }
 
 

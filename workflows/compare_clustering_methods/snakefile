@@ -51,7 +51,10 @@ rule all:
         expand(os.path.join(RESULTS_DIR,'files','ica_iterations-{cancer}-A.pickle'), cancer=CANCER_TYPES),
         
         # cluster ica iterations
-        expand(os.path.join(RESULTS_DIR,'files','cluster_iterations-{cancer}-{method}'), cancer=CANCER_TYPES, method=CLUSTERING_METHODS)
+        expand(os.path.join(RESULTS_DIR,'files','cluster_iterations-{cancer}-{method}'), cancer=CANCER_TYPES, method=CLUSTERING_METHODS),
+        
+        # make figures
+        os.path.join(RESULTS_DIR,'figures')
         
 
 rule compute_ica_iterations:
@@ -98,3 +101,18 @@ rule cluster_ica_iterations:
         """
         
 
+rule figures_compare_clustering_robustica:
+    input:
+        [os.path.join(RESULTS_DIR,'files','cluster_iterations-%s-%s') % (c,m) 
+         for c in CANCER_TYPES for m in CLUSTERING_METHODS]
+    output:
+        directory(os.path.join(RESULTS_DIR,'figures'))
+    params:
+        evaluation_dirs = [os.path.join(RESULTS_DIR,'files','cluster_iterations-%s-%s') % (c,m) 
+         for c in CANCER_TYPES for m in CLUSTERING_METHODS]
+    shell:
+        """
+        Rscript scripts/figures_compare_clustering.R \
+                    --evaluation_dirs={params.evaluation_dirs} \
+                    --figs_dir={output}
+        """

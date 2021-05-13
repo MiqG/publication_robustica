@@ -32,7 +32,10 @@ MAX_ITERS = [str(int(m)) for m in [100,200,500,1e3,1e4]]
 rule all:
     input:
         # evaluate ica iterations
-        expand(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{cancer}_{max_iter}_{tol}'), max_iter=MAX_ITERS, tol=TOLS, cancer=CANCER_TYPES)
+        expand(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{cancer}_{max_iter}_{tol}'), max_iter=MAX_ITERS, tol=TOLS, cancer=CANCER_TYPES),
+        
+        # make figures
+        os.path.join(RESULTS_DIR,'figures')
         
 
 rule evaluate_ica_iterations:
