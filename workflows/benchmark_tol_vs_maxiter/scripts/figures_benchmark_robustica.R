@@ -18,14 +18,14 @@ source(file.path(ROOT,'src','R','utils.R'))
 
 # Development
 # -----------
-TOLS = paste0('1e-',c(1,2,3,4))
-MAX_ITERS = as.character(c(100,200,500,1000,10000))
-RESULTS_DIR = file.path(ROOT,'results','benchmark_tol_vs_maxiter','files')
-dirnames = as.vector(sapply(TOLS, function(t){sapply(MAX_ITERS, function(m){ sprintf('evaluate_iterations-LGG_%s_%s',m,t) })}))
-dirnames = 'evaluate_iterations-LGG_10000_1e-1,evaluate_iterations-LGG_10000_1e-2,evaluate_iterations-LGG_10000_1e-3,evaluate_iterations-LGG_1000_1e-1,evaluate_iterations-LGG_1000_1e-2,evaluate_iterations-LGG_1000_1e-3,evaluate_iterations-LGG_1000_1e-4,evaluate_iterations-LGG_100_1e-1,evaluate_iterations-LGG_100_1e-2,evaluate_iterations-LGG_100_1e-3,evaluate_iterations-LGG_100_1e-4,evaluate_iterations-LGG_200_1e-2,evaluate_iterations-LGG_200_1e-3,evaluate_iterations-LGG_200_1e-4,evaluate_iterations-LGG_500_1e-3,evaluate_iterations-LGG_500_1e-4'
-dirnames = unlist(strsplit(dirnames, ','))
-evaluation_dirs = file.path(RESULTS_DIR,dirnames)
-figs_dir = file.path(ROOT,'results','benchmark_tol_vs_maxiter','figures')
+# TOLS = paste0('1e-',c(1,2,3,4))
+# MAX_ITERS = as.character(c(100,200,500,1000,10000))
+# RESULTS_DIR = file.path(ROOT,'results','benchmark_tol_vs_maxiter','files')
+# dirnames = as.vector(sapply(TOLS, function(t){sapply(MAX_ITERS, function(m){ sprintf('evaluate_iterations-LGG_%s_%s',m,t) })}))
+# dirnames = 'evaluate_iterations-LGG_10000_1e-1,evaluate_iterations-LGG_10000_1e-2,evaluate_iterations-LGG_10000_1e-3,evaluate_iterations-LGG_1000_1e-1,evaluate_iterations-LGG_1000_1e-2,evaluate_iterations-LGG_1000_1e-3,evaluate_iterations-LGG_1000_1e-4,evaluate_iterations-LGG_100_1e-1,evaluate_iterations-LGG_100_1e-2,evaluate_iterations-LGG_100_1e-3,evaluate_iterations-LGG_100_1e-4,evaluate_iterations-LGG_200_1e-2,evaluate_iterations-LGG_200_1e-3,evaluate_iterations-LGG_200_1e-4,evaluate_iterations-LGG_500_1e-3,evaluate_iterations-LGG_500_1e-4'
+# dirnames = unlist(strsplit(dirnames, ','))
+# evaluation_dirs = file.path(RESULTS_DIR,dirnames)
+# figs_dir = file.path(ROOT,'results','benchmark_tol_vs_maxiter','figures')
 
 
 ##### FUNCTIONS #####
@@ -169,7 +169,7 @@ define_module = function(x){
 plot_components_corr = function(components, metadata){
     
     # init
-    reference = 'max_iter=10000 & tol=1e-3'
+    reference = 'max_iter=10000 & tol=1e-4'
     queries = setdiff(unique(metadata$params),reference)
     plts = list()
     
@@ -273,7 +273,7 @@ save_plots = function(plts, figs_dir){
 main = function(){
     args = getParsedArgs()
             
-    evaluation_dirs = unlist(strsplit(args$evaluation_dirs,','))
+    evaluation_dirs = unlist(strsplit(args$evaluation_dirs,' '))
     figs_dir = args$figs_dir
     
     dir.create(figs_dir, recursive = TRUE)

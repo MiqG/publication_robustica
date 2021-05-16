@@ -35,7 +35,7 @@ rule all:
         expand(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{cancer}_{max_iter}_{tol}'), max_iter=MAX_ITERS, tol=TOLS, cancer=CANCER_TYPES),
         
         # make figures
-        os.path.join(RESULTS_DIR,'figures')
+        expand(os.path.join(RESULTS_DIR,'figures','{cancer}'), cancer=CANCER_TYPES)
         
 
 rule evaluate_ica_iterations:
@@ -59,18 +59,17 @@ rule evaluate_ica_iterations:
                     --n_jobs={threads}
         """
 
+        
 rule figures_benchmark_robustica:
     input:
-        [os.path.join(RESULTS_DIR,'files','evaluate_iterations-%s_%s_%s') 
-         for c in CANCER_TYPES for m in MAX_ITERS for t in MAX_TOLS]
+        [os.path.join(RESULTS_DIR,'files','evaluate_iterations-{cancer}_{max_iter}_{tol}')\
+         .format(cancer=c, max_iter=m, tol=t)
+         for c in CANCER_TYPES for m in MAX_ITERS for t in TOLS]
     output:
-        directory(os.path.join(RESULTS_DIR,'figures'))
-    params:
-        evaluation_dirs = ','.join([os.path.join(RESULTS_DIR,'files','evaluate_iterations-%s_%s_%s') 
-         for c in CANCER_TYPES for m in MAX_ITERS for t in MAX_TOLS])
+        directory(os.path.join(RESULTS_DIR,'figures','{cancer}'))
     shell:
         """
         Rscript scripts/figures_benchmark_robustica.R \
-                    --evaluation_dirs={params.evaluation_dirs} \
+                    --evaluation_dirs='{input}' \
                     --figs_dir={output}
         """
