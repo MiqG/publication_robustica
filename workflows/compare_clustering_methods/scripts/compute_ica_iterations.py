@@ -13,7 +13,7 @@ from robustica import RobustICA, InferComponents
 
 # variables
 MAX_VARIANCE_EXPLAINED = 0.9
-MAX_ITER = int(1e5)
+MAX_ITER = 1000 # benchmarked
 TOL = 1e-4 # default
 
 """

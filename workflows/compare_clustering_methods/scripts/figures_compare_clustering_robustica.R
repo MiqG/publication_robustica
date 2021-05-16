@@ -152,7 +152,7 @@ save_plots = function(plts, figs_dir){
 main = function(){
     args = getParsedArgs()
             
-    evaluation_dirs = unlist(strsplit(args$evaluation_dirs,','))
+    evaluation_dirs = unlist(strsplit(args$evaluation_dirs,' '))
     figs_dir = args$figs_dir
     
     dir.create(figs_dir, recursive = TRUE)

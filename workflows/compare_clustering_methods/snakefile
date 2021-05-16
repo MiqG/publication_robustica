@@ -107,12 +107,9 @@ rule figures_compare_clustering_robustica:
          for c in CANCER_TYPES for m in CLUSTERING_METHODS]
     output:
         directory(os.path.join(RESULTS_DIR,'figures'))
-    params:
-        evaluation_dirs = [os.path.join(RESULTS_DIR,'files','cluster_iterations-%s-%s') % (c,m) 
-         for c in CANCER_TYPES for m in CLUSTERING_METHODS]
     shell:
         """
         Rscript scripts/figures_compare_clustering.R \
-                    --evaluation_dirs={params.evaluation_dirs} \
+                    --evaluation_dirs='{input}' \
                     --figs_dir={output}
         """
