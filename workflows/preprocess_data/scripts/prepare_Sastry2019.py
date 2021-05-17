@@ -17,7 +17,7 @@ import argparse
 import pandas as pd
 
 # variables
-SAVE_PARAMS = {"sep": "\t", "index": True}
+SAVE_PARAMS = {"sep": "\t", "index": False}
 CONTROLS = ['control__wt_glc__1', 'control__wt_glc__2']
 
 """

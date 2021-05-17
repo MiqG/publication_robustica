@@ -22,31 +22,35 @@ RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','benchmark_tol_vs_maxiter')
 
-CANCER_TYPES = ['LGG']
+DATASETS = ['LGG','Sastry2019']
 ITERATIONS = 100
 TOLS = ['1e-%s' % t for t in [1,2,3,4]]
 MAX_ITERS = [str(int(m)) for m in [100,200,500,1e3,1e4]]
-
+MAX_VARIANCE_EXPLAINED = {
+    'LGG':0.9,
+    'Sastry2019':0.99
+}
 
 ##### RULES #####
 rule all:
     input:
         # evaluate ica iterations
-        expand(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{cancer}_{max_iter}_{tol}'), max_iter=MAX_ITERS, tol=TOLS, cancer=CANCER_TYPES),
+        expand(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{dataset}_{max_iter}_{tol}'), max_iter=MAX_ITERS, tol=TOLS, dataset=DATASETS),
         
         # make figures
-        expand(os.path.join(RESULTS_DIR,'figures','{cancer}'), cancer=CANCER_TYPES)
+        expand(os.path.join(RESULTS_DIR,'figures','{dataset}'), dataset=DATASETS)
         
 
 rule evaluate_ica_iterations:
     input:
-        os.path.join(PREP_DIR,'TCGA','genexpr','{cancer}.tsv.gz')
+        os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz')
     output:
-        directory(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{cancer}_{max_iter}_{tol}'))
+        directory(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{dataset}_{max_iter}_{tol}'))
     params:
         iterations = ITERATIONS,
         max_iter = '{max_iter}',
-        tol = '{tol}'
+        tol = '{tol}',
+        max_variance_explained = lambda wildcards: MAX_VARIANCE_EXPLAINED[wildcards.dataset]
     threads: 15
     shell:
         """
@@ -56,17 +60,18 @@ rule evaluate_ica_iterations:
                     --iterations={params.iterations} \
                     --max_iter={params.max_iter} \
                     --tol={params.tol} \
-                    --n_jobs={threads}
+                    --n_jobs={threads} \
+                    --max_variance_explained={params.max_variance_explained}
         """
 
         
 rule figures_benchmark_robustica:
     input:
-        [os.path.join(RESULTS_DIR,'files','evaluate_iterations-{cancer}_{max_iter}_{tol}')\
-         .format(cancer=c, max_iter=m, tol=t)
-         for c in CANCER_TYPES for m in MAX_ITERS for t in TOLS]
+        [os.path.join(RESULTS_DIR,'files','evaluate_iterations-{dataset}_{max_iter}_{tol}')\
+         .format(dataset=c, max_iter=m, tol=t)
+         for c in DATASETS for m in MAX_ITERS for t in TOLS]
     output:
-        directory(os.path.join(RESULTS_DIR,'figures','{cancer}'))
+        directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
     shell:
         """
         Rscript scripts/figures_benchmark_robustica.R \

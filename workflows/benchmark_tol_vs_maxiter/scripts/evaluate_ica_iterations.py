@@ -28,7 +28,7 @@ import os
 import time
 
 # variables
-MAX_VARIANCE_EXPLAINED = 0.9
+#MAX_VARIANCE_EXPLAINED = 0.9
 SAVE_PARAMS = {"sep": "\t", "index": False, "compression": "gzip"}
 
 """
@@ -59,10 +59,10 @@ def process_inputs(input_file):
     return X
 
 
-def evaluate_ica_iterations(X, n_components, iterations, n_jobs, max_iter, tol):
+def evaluate_ica_iterations(X, n_components, iterations, n_jobs, max_iter, tol, max_variance_explained):
     # infer components
     if n_components is None:
-        n_components = InferComponents(MAX_VARIANCE_EXPLAINED).fit_predict(X)
+        n_components = InferComponents(max_variance_explained).fit_predict(X)
     print("Selected %s components" % n_components)
 
     # run robust ICA
@@ -108,6 +108,7 @@ def parse_args():
     parser.add_argument("--max_iter", type=float)
     parser.add_argument("--tol", type=float)
     parser.add_argument("--n_components", type=int, default=None)
+    parser.add_argument("--max_variance_explained", type=float, default=0.9)
 
     args = parser.parse_args()
 
@@ -122,6 +123,7 @@ def main():
     n_jobs = args.n_jobs
     max_iter = int(args.max_iter)
     tol = args.tol
+    max_variance_explained = args.max_variance_explained
     n_components = args.n_components
 
     os.makedirs(output_dir)
@@ -131,7 +133,7 @@ def main():
 
     print("Computing ICA...")
     S, A, S_std, A_std, summary, clustering_stats = evaluate_ica_iterations(
-        X, n_components, iterations, n_jobs, max_iter, tol
+        X, n_components, iterations, n_jobs, max_iter, tol, max_variance_explained
     )
 
     print("Saving...")
