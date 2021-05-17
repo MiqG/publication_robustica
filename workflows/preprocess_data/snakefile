@@ -24,19 +24,23 @@ CANCER_TYPES = ['BRCA','LGG']
 rule all:
     input:
         # create metadata
-        [os.path.join(PREP_DIR,'TCGA','metadata','%s.tsv') % cancer for cancer in CANCER_TYPES],
+        [os.path.join(PREP_DIR,'metadata','%s.tsv') % cancer for cancer in CANCER_TYPES],
         
         # split by cancer type
-        expand(os.path.join(PREP_DIR,'TCGA','genexpr','{cancer}.tsv.gz'), cancer=CANCER_TYPES)
+        expand(os.path.join(PREP_DIR,'genexpr','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
+        
+        # prepare Sastry 2019
+        os.path.join(PREP_DIR,'genexpr','Sastry2019.tsv.gz')
+    
     
 rule prepare_metadata:
     input:
         clinical = os.path.join(RAW_DIR,'UCSCXena','TCGA','phenotype','TCGA_phenotype_denseDataOnlyDownload.tsv.gz'),
         survival = os.path.join(RAW_DIR,'UCSCXena','TCGA','phenotype','Survival_SupplementalTable_S1_20171025_xena_sp.gz')
     output:
-        [os.path.join(PREP_DIR,'TCGA','metadata','%s.tsv') % cancer for cancer in CANCER_TYPES]
+        [os.path.join(PREP_DIR,'metadata','%s.tsv') % cancer for cancer in CANCER_TYPES]
     params:
-        output_dir = os.path.join(PREP_DIR,'TCGA','metadata')
+        output_dir = os.path.join(PREP_DIR,'metadata')
     shell:
         """
         python scripts/prepare_metadata.py \
@@ -51,7 +55,7 @@ rule prepare_genexpr:
         genexpr = os.path.join(RAW_DIR,'UCSCXena','TCGA','rnaseq','AdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.xena.gz'),
         metadata = os.path.join(PREP_DIR,'TCGA','metadata','PANCAN.tsv')
     output:
-        os.path.join(PREP_DIR,'TCGA','genexpr','{cancer}.tsv.gz')
+        os.path.join(PREP_DIR,'genexpr','{cancer}.tsv.gz')
     params:
         sample_col = 'sampleID',
         subset_col = 'cancer_type',
@@ -65,4 +69,23 @@ rule prepare_genexpr:
                     --subset_col={params.subset_col} \
                     --subset_values={params.subset_values} \
                     --output_file={output}
+        """
+        
+        
+rule prepare_Sastry2019:
+    input:
+        suptab = os.path.join(RAW_DIR,'articles','Sastry2019','ica_analysis.xlsx')
+    output:
+        genexpr = os.path.join(PREP_DIR,'genexpr','Sastry2019.tsv.gz'),
+        metadata = os.path.join(PREP_DIR,'metadata','Sastry2019.tsv'),
+        S = os.path.join(PREP_DIR,'ica','Sastry2019-S.tsv.gz'),
+        A = os.path.join(PREP_DIR,'ica','Sastry2019-A.tsv.gz')
+    shell:
+        """
+        python scripts/prepare_Sastry2019.py \
+                    --suptab_file={input.suptab} \
+                    --genexpr_file={output.genexpr} \
+                    --metadata_file={output.metadata} \
+                    --S_file={output.S} \
+                    --A_file={output.A}
         """
