@@ -87,7 +87,7 @@ rule cluster_ica_iterations:
     params:
         method = '{method}',
         iterations = ITERATIONS
-    threads: 5
+    threads: 15
     shell:
         """
         python scripts/cluster_ica_iterations.py \
@@ -109,7 +109,7 @@ rule figures_compare_clustering_robustica:
         directory(os.path.join(RESULTS_DIR,'figures'))
     shell:
         """
-        Rscript scripts/figures_compare_clustering.R \
+        Rscript scripts/figures_compare_clustering_robustica.R \
                     --evaluation_dirs='{input}' \
                     --figs_dir={output}
         """

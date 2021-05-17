@@ -72,9 +72,7 @@ load_data = function(evaluation_dirs){
     clustering_stats = load_datatype(evaluation_dirs, filename='clustering_summary.tsv')
         
     data = list(
-        clustering_stats = clustering_stats,
-        components = S[['components']],
-        metadata = S[['metadata']]
+        clustering_stats = clustering_stats
     )
     
     return(data)
