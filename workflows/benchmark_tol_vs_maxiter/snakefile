@@ -30,6 +30,10 @@ MAX_VARIANCE_EXPLAINED = {
     'LGG':0.9,
     'Sastry2019':0.99
 }
+REFERENCES = {
+    'Sastry2019': os.path.join(PREP_DIR,'ica','Sastry2019-S.tsv.gz'),
+    'LGG': 'NA'
+}
 
 ##### RULES #####
 rule all:
@@ -68,13 +72,18 @@ rule evaluate_ica_iterations:
 rule figures_benchmark_robustica:
     input:
         [os.path.join(RESULTS_DIR,'files','evaluate_iterations-{dataset}_{max_iter}_{tol}')\
-         .format(dataset=c, max_iter=m, tol=t)
-         for c in DATASETS for m in MAX_ITERS for t in TOLS]
+         .format(dataset='{dataset}', max_iter=m, tol=t)
+         for m in MAX_ITERS for t in TOLS]
     output:
         directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
+    params:
+        dataset = '{dataset}',
+        S_ref =  lambda wildcards: REFERENCES[wildcards.dataset]
     shell:
         """
         Rscript scripts/figures_benchmark_robustica.R \
                     --evaluation_dirs='{input}' \
-                    --figs_dir={output}
+                    --figs_dir={output} \
+                    --S_ref_file={params.S_ref} \
+                    --dataset={params.dataset}
         """
