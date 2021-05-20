@@ -17,7 +17,7 @@ source(file.path(ROOT,'src','R','utils.R'))
 
 # variables
 REFERENCES = list(
-    'LGG' = 'max_iter=10000 & tol=1e-1',
+    'LGG' = 'max_iter=10000 & tol=1e-4',
     'Sastry2019' = 'Sastry2019_ref'
 )
 
@@ -245,7 +245,7 @@ plot_components_corr = function(components, metadata, dataset){
         alpha=0.5
     ) +
     theme_pubr(x.text.angle=70) + 
-    labs(x='Parameters', y='Best Correlation', color='Detected')
+    labs(x='Parameters', y='Best Abs. Correlation', color='Detected')
     
     # module overlap
     ## define modules
@@ -294,7 +294,7 @@ plot_components_corr = function(components, metadata, dataset){
         alpha=0.5
     ) +
     theme_pubr(x.text.angle=70) + 
-    labs(x='Parameters', y='Best Jaccard Similarity', color='Detected')
+    labs(x='Parameters', y='Best Abs. Jaccard Sim.', color='Detected')
     
     return(plts)
 }

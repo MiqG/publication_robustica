@@ -86,7 +86,8 @@ plot_clustering_stats = function(clustering_stats){
         X %>% distinct(params, label) %>% count(params), 
         x='params', y='n'
     ) + 
-    theme_pubr(x.text.angle=70)
+    theme_pubr(x.text.angle=70) +
+    labs(x='Parameters', y='Number of Robust Components')
     
     plts[['clustering-cluster_size']] = ggstripchart(
         X %>% count(params, label, is_noise), 
@@ -100,20 +101,24 @@ plot_clustering_stats = function(clustering_stats){
         X, x='params', y='silhouette', fill='params', color=NA
     ) + 
     theme_pubr(x.text.angle=70) +
-    guides(fill=FALSE)
+    guides(fill=FALSE) + 
+    labs(x='Parameters', y='Silhouette')
+
     
     plts[['clustering-silhouettes_mean_bycomponent']] = ggstripchart(
         X %>% group_by(params,label,is_noise) %>% summarize(sil=mean(silhouette)),
         x='params', y='sil',
         color='is_noise', palette='jco', alpha=0.5
     ) + 
-    theme_pubr(x.text.angle=70)
+    theme_pubr(x.text.angle=70) + 
+    labs(x='Parameters', y='Silhouette Mean by Component')
     
     plts[['clustering-time']] = ggstripchart(
         X %>% distinct(params,time),
         x='params', y='time'
     ) + 
-    theme_pubr(x.text.angle=70)
+    theme_pubr(x.text.angle=70) + 
+    labs(x='Parameters', y='Clustering Time (s)')
     
     return(plts)
 }
