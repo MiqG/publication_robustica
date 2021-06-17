@@ -35,7 +35,7 @@ RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
 
-ALGORITHMS = ['Icasso','robustica','robustica_pca']
+ALGORITHMS = ['icasso','robustica','robustica_pca']
 
 ##### RULES #####
 rule all:
@@ -47,7 +47,7 @@ rule all:
         expand(os.path.join(RESULTS_DIR,'files','performance-{algorithm}.tsv.gz'), algorithm=ALGORITHMS),
         
         # make figures
-        expand(os.path.join(RESULTS_DIR,'figures'), dataset=DATASETS)
+        #expand(os.path.join(RESULTS_DIR,'figures'), dataset=DATASETS)
 
         
 rule create_sample_data:
