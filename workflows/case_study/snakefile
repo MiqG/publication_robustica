@@ -1,0 +1,46 @@
+"""
+Workflow purpose
+----------------
+Study the computed robust independent components.
+
+"""
+
+import os
+
+##### VARIABLES #####
+ROOT = '/home/miquel/projects/publication_robustica'
+DATA_DIR = os.path.join(ROOT,'data')
+RAW_DIR = os.path.join(DATA_DIR,'raw')
+PREP_DIR = os.path.join(DATA_DIR,'prep')
+RESULTS_DIR = os.path.join(ROOT,'results','compare_clustering_methods')
+
+CANCER_TYPES = ['LGG']
+CLUSTERING_METHODS = ['DBSCAN']
+
+##### RULES #####
+rule all:
+    input:
+        # make figures
+        expand(os.path.join(RESULTS_DIR,'figures','{cancer}-{method}'), cancer=CANCER_TYPES, method=CLUSTERING_METHODS)
+        
+        
+rule figures_interpret_ica:
+    input:
+        S = os.path.join(RESULTS_DIR,'files','cluster_iterations-{cancer}-{method}','S_mean.tsv.gz'),
+        A = os.path.join(RESULTS_DIR,'files','cluster_iterations-{cancer}-{method}','A_mean.tsv.gz'),
+        genexpr = os.path.join(PREP_DIR,'genexpr','{cancer}.tsv.gz'),
+        snv = os.path.join(PREP_DIR,'snv','{cancer}.tsv.gz'),
+        metadata = os.path.join(PREP_DIR,'metadata','{cancer}.tsv')
+    output:
+        directory(os.path.join(RESULTS_DIR,'figures','{cancer}-{method}'))
+    shell:
+        """
+        Rscript scripts/figures_interpret_ica.R \
+                    --S_file={input.S} \
+                    --A_file={input.A} \
+                    --genexpr_file={input.genexpr} \
+                    --snv_file={input.snv} \
+                    --metadata_file={input.metadata} \
+                    --figs_dir={output}
+        """
+        
