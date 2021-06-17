@@ -68,8 +68,8 @@ def cluster_components(X, n_components, **kws):
 
 def get_iteration_signs(data, S_all, A_all, n_components, iterations):
     """
-        Correct direction of every iteration of ICA with respect to the first one.
-        """
+    Correct direction of every iteration of ICA with respect to the first one.
+    """
     # get component that explains the most variance of X from first iteration
     S0 = S_all[:, 0:n_components]
     A0 = A_all[:, 0:n_components]
@@ -178,15 +178,10 @@ def run_pca(n_components, S_all):
     return PCA(n_components).fit_transform(S_all.T).T
 
 
-def icasso(data, iterations):
-    n_components = int(0.5 * data.shape[1])
+def icasso(data, S_all, A_all, iterations):
+    n_components = int(S_all.shape[1]/iterations)
     mem = {}
     t = {}
-    start = time.time()
-    mem["iterate_ica"], (S_all, A_all) = memory_usage(
-        (iterate_ica, (data, n_components, iterations)), **MEM_KWS
-    )
-    t["iterate_ica"] = time.time() - start
     start = time.time()
     mem["compute_distance"], D = memory_usage((compute_distance, (S_all,)), **MEM_KWS)
     t["compute_distance"] = time.time() - start
@@ -204,16 +199,10 @@ def icasso(data, iterations):
     return S_robust, A_robust, mem, t
 
 
-def robustica(data, iterations, do_pca=False):
-    n_components = int(0.5 * data.shape[1])
+def robustica(data, S_all, A_all, iterations, do_pca=False):
+    n_components = int(S_all.shape[1]/iterations)
     mem = {}
     t = {}
-
-    start = time.time()
-    mem["iterate_ica"], (S_all, A_all) = memory_usage(
-        (iterate_ica, (data, n_components, iterations)), **MEM_KWS
-    )
-    t["iterate_ica"] = time.time() - start
 
     if do_pca:
         start = time.time()
@@ -248,8 +237,8 @@ def robustica(data, iterations, do_pca=False):
     return S_robust, A_robust, mem, t
 
 
-def robustica_pca(data, iterations):
-    return robustica(data, iterations, do_pca=True)
+def robustica_pca(data, S_all, A_all, iterations):
+    return robustica(data, S_all, A_all, iterations, do_pca=True)
 
 
 def get_performance(mem, t):
@@ -268,9 +257,9 @@ def get_performance(mem, t):
     return performance
 
 
-def evaluate_performance(data, algorithm, iterations):
+def evaluate_performance(data, S_all, A_all, algorithm, iterations):
     func = eval(algorithm)
-    S_robust, A_robust, mem, t = func(data, iterations)
+    S_robust, A_robust, mem, t = func(data, S_all, A_all, iterations)
     performance = get_performance(mem, t)
     performance['algorithm'] = algorithm
     return S_robust, A_robust, performance
@@ -281,7 +270,7 @@ def parse_args():
     parser.add_argument("--input_file", type=str)
     parser.add_argument("--output_file", type=str)
     parser.add_argument("--iterations", type=int)
-    parser.add_argument("--algorithm", type=str)
+    parser.add_argument("--algorithms", type=str)
 
     args = parser.parse_args()
 
@@ -293,11 +282,20 @@ def main():
     input_file = args.input_file
     output_file = args.output_file
     iterations = args.iterations
-    algorithm = args.algorithm
+    algorithms = args.algorithms.split(',')
 
     data = load_data(input_file)
-    _, _, result = evaluate_performance(data, algorithm, iterations)
-    result.to_csv(output_file, **SAVE_PARAMS)
+    n_components = int(0.5 * data.shape[1])
+    S_all, A_all = iterate_ica(data, n_components, iterations)
+    results = []
+    for algorithm in algorithms:
+        _, _, result = evaluate_performance(
+            data, S_all, A_all, algorithm, iterations
+        )
+        results.append(result)
+        
+    results = pd.concat(results)
+    results.to_csv(output_file, **SAVE_PARAMS)
 
 
 ##### SCRIPT #####

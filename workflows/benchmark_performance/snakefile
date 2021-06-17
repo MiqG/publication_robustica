@@ -44,7 +44,7 @@ rule all:
         os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz'),
         
         # evaluate performance
-        expand(os.path.join(RESULTS_DIR,'files','performance-{algorithm}.tsv.gz'), algorithm=ALGORITHMS),
+        os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz')
         
         # make figures
         #expand(os.path.join(RESULTS_DIR,'figures'), dataset=DATASETS)
@@ -69,9 +69,9 @@ rule evaluate_performance:
     input:
         os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz')
     output:
-        os.path.join(RESULTS_DIR,'files','performance-{algorithm}.tsv.gz')
+        os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz')
     params:
-        algorithm = '{algorithm}',
+        algorithms = ','.join(ALGORITHMS),
         iterations = 100
     shell:
         """
@@ -79,10 +79,10 @@ rule evaluate_performance:
                     --input_file={input} \
                     --output_file={output} \
                     --iterations={params.iterations} \
-                    --algorithm={params.algorithm}
+                    --algorithms={params.algorithms}
         """
-        
-
+    
+    
 rule figures_benchmark_performance:
     input:
         icasso = os.path.join(RESULTS_DIR,'files','performance-Icasso.tsv.gz'),
