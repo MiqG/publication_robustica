@@ -1,0 +1,101 @@
+"""
+Workflow purpose
+----------------
+Evaluate the performance impact of changing the algorithm.
+
+Outline
+-------
+1. Compute ICA 100 times with a sample dataset with default parameters using:
+    - the default algorithm (Icasso): 
+        1) iterate ICAs
+        2) Distance Matrix
+        3) Agglomerative clustering
+        4) Compute centroids (correcting sign)
+    - robustica
+        1) iterate ICAs
+        2) Correct signs
+        3) Agglomerative clustering
+        4) Compute centroids
+    - robustica + PCA
+        1) iterate ICAs
+        2) Correct signs
+        3) compress feature space: PCA
+        4) Agglomerative clustering
+        5) Compute centroids
+        
+2. make figures
+"""
+
+import os
+
+##### VARIABLES #####
+ROOT = '/home/miquel/projects/publication_robustica'
+DATA_DIR = os.path.join(ROOT,'data')
+RAW_DIR = os.path.join(DATA_DIR,'raw')
+PREP_DIR = os.path.join(DATA_DIR,'prep')
+RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
+
+ALGORITHMS = ['Icasso','robustica','robustica_pca']
+
+##### RULES #####
+rule all:
+    input:
+        # create sample data
+        os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz'),
+        
+        # evaluate performance
+        expand(os.path.join(RESULTS_DIR,'files','performance-{algorithm}.tsv.gz'), algorithm=ALGORITHMS),
+        
+        # make figures
+        expand(os.path.join(RESULTS_DIR,'figures'), dataset=DATASETS)
+
+        
+rule create_sample_data:
+    params:
+        n_cols=10,
+        n_rows=50
+    output:
+        os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz')
+    shell:
+        """
+        python scripts/create_sample_data.py \
+                    --n_cols={params.n_cols} \
+                    --n_rows={params.n_rows} \
+                    --output_file={output}
+        """
+        
+    
+rule evaluate_performance:
+    input:
+        os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz')
+    output:
+        os.path.join(RESULTS_DIR,'files','performance-{algorithm}.tsv.gz')
+    params:
+        algorithm = '{algorithm}',
+        iterations = 100
+    shell:
+        """
+        python scripts/evaluate_performance.py \
+                    --input_file={input} \
+                    --output_file={output} \
+                    --iterations={params.iterations} \
+                    --algorithm={params.algorithm}
+        """
+        
+
+rule figures_benchmark_performance:
+    input:
+        icasso = os.path.join(RESULTS_DIR,'files','performance-Icasso.tsv.gz'),
+        robustica = os.path.join(RESULTS_DIR,'files','performance-robustica.tsv.gz'),
+        robustica_pca = os.path.join(RESULTS_DIR,'files','performance-Icasso.tsv.gz')
+    output:
+        directory(os.path.join(RESULTS_DIR,'figures'))
+    shell:
+        """
+        Rscript scripts/figures_benchmark_performance.R \
+                    --icasso_file={input.icasso} \
+                    --robustica_file={input.robustica} \
+                    --robustica_pca_file={input.robustica_pca} \
+                    --figs_dir={output}
+        """
+        
