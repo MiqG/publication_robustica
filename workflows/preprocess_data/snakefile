@@ -30,7 +30,10 @@ rule all:
         expand(os.path.join(PREP_DIR,'genexpr','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
         
         # prepare Sastry 2019
-        os.path.join(PREP_DIR,'genexpr','Sastry2019.tsv.gz')
+        os.path.join(PREP_DIR,'genexpr','Sastry2019.tsv.gz'),
+        
+        # prepare mutations TCGA
+        expand(os.path.join(PREP_DIR,'snv','{cancer}.tsv.gz'), cancer=CANCER_TYPES)
     
     
 rule prepare_metadata:
@@ -88,4 +91,19 @@ rule prepare_Sastry2019:
                     --metadata_file={output.metadata} \
                     --S_file={output.S} \
                     --A_file={output.A}
+        """
+        
+        
+rule compute_gene_mutation_frequency_tcga:
+    input:
+        snv_file = os.path.join(RAW_DIR,'UCSCXena','TCGA','snv','mc3.v0.2.8.PUBLIC.xena.gz'),
+        metadata_file = os.path.join(PREP_DIR,'metadata','{cancer}.tsv')
+    output:
+        os.path.join(PREP_DIR,'snv','{cancer}.tsv.gz')
+    shell:
+        """
+        python scripts/count_mutations_per_gene_sample_variant.py \
+                    --snv_file={input.snv_file} \
+                    --metadata_file={input.metadata_file} \
+                    --output_file={output}
         """
