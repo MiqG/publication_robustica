@@ -6,18 +6,16 @@ Evaluate the performance impact of changing the algorithm.
 Outline
 -------
 1. Compute ICA 100 times with a sample dataset with default parameters using:
+        1) iterate ICAs (common for all)
     - the default algorithm (Icasso): 
-        1) iterate ICAs
         2) Distance Matrix
         3) Agglomerative clustering
         4) Compute centroids (correcting sign)
     - robustica
-        1) iterate ICAs
         2) Correct signs
         3) Agglomerative clustering
         4) Compute centroids
     - robustica + PCA
-        1) iterate ICAs
         2) Correct signs
         3) compress feature space: PCA
         4) Agglomerative clustering
@@ -52,8 +50,8 @@ rule all:
         
 rule create_sample_data:
     params:
-        n_cols=10,
-        n_rows=50
+        n_cols=500,
+        n_rows=20000
     output:
         os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz')
     shell:

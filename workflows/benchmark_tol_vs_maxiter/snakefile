@@ -1,7 +1,7 @@
 """
 Workflow purpose
 ----------------
-Evaluate the impact of using different clustering algorithms to compute robust ICA.
+Evaluate the impact of using different parameters to compute robust ICA.
 
 Outline
 -------
@@ -16,7 +16,7 @@ Outline
 import os
 
 ##### VARIABLES #####
-ROOT = '/home/miquel/projects/publication_robustica'
+ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
 DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
