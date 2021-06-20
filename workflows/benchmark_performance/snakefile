@@ -42,10 +42,10 @@ rule all:
         os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz'),
         
         # evaluate performance
-        os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz')
+        os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz'),
         
         # make figures
-        #expand(os.path.join(RESULTS_DIR,'figures'), dataset=DATASETS)
+        os.path.join(RESULTS_DIR,'figures')
 
         
 rule create_sample_data:
@@ -83,13 +83,19 @@ rule evaluate_performance:
     
 rule figures_benchmark_performance:
     input:
-        performance_evaluation = os.path.join(RESULTS_DIR,'files','performance-Icasso.tsv.gz')
+        performance_evaluation = os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz'),
+        S_icasso = os.path.join(RESULTS_DIR,'files','icasso-S.tsv.gz'),
+        S_robustica = os.path.join(RESULTS_DIR,'files','robustica-S.tsv.gz'),
+        S_robustica_pca = os.path.join(RESULTS_DIR,'files','robustica_pca-S.tsv.gz')
     output:
         directory(os.path.join(RESULTS_DIR,'figures'))
     shell:
         """
         Rscript scripts/figures_benchmark_performance.R \
                     --performance_evaluation_file={input.performance_evaluation} \
+                    --S_icasso_file={input.S_icasso} \
+                    --S_robustica_file={input.S_robustica} \
+                    --S_robustica_pca_file={input.S_robustica_pca} \
                     --figs_dir={output}
         """
         
