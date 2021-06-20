@@ -7,6 +7,7 @@
 # Run different algorithms to perform robust ICA.
 
 import argparse
+import os
 import pandas as pd
 import numpy as np
 from sklearn.decomposition import FastICA, PCA
@@ -32,7 +33,8 @@ ROOT = '/home/miquel/projects/publication_robustica'
 RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
 input_file = os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz')
 iterations = 10
-algorithm = 'icasso'
+algorithm = 'robustica_pca'
+algorithms = 'icasso,robustica,robustica_pca'.split(',')
 """
 
 ##### FUNCTIONS #####
@@ -60,25 +62,33 @@ def compute_distance(X):
     return D
 
 
+def corrmats(X, Y):
+    # center data
+    X_cent = X - X.mean(axis=0)
+    Y_cent = Y - Y.mean(axis=0)
+    
+    # compute correlation
+    num = X_cent.T.dot(Y_cent)
+    #dom = np.sqrt( (X_cent ** 2).sum(axis=0) * (Y_cent ** 2).sum(axis=0) )
+
+    correl = num #/ dom
+    
+    return correl
+    
+
 def cluster_components(X, n_components, **kws):
     model = AgglomerativeClustering(n_clusters=n_components, linkage="average", **kws)
     labels = model.fit_predict(X.T)  # features are in rows
     return labels
 
 
-def get_iteration_signs(data, S_all, A_all, n_components, iterations):
+def get_iteration_signs(S_all, n_components, iterations):
     """
     Correct direction of every iteration of ICA with respect to the first one.
     """
-    # get component that explains the most variance of X from first iteration
-    S0 = S_all[:, 0:n_components]
-    A0 = A_all[:, 0:n_components]
-    tss = []
-    for i in range(n_components):
-        pred = np.dot(S0[:, i].reshape(-1, 1), A0[:, i].reshape(1, -1))
-        tss.append(np.sum((data - pred) ** 2))  # total sum of squares
-    best_comp = S0[:, np.argmax(tss)]
-
+    # components from first run are the reference
+    S0 = S_all[:,0:n_components]
+    
     # correlate best component with the rest of iterations to decide signs
     signs = np.full(S_all.shape[1], np.nan)
     signs[0:n_components] = 1
@@ -87,32 +97,28 @@ def get_iteration_signs(data, S_all, A_all, n_components, iterations):
         end = start + n_components
         S_it = S_all[:, start:end]
 
-        correl = np.apply_along_axis(
-            lambda x: pearsonr(x, best_comp)[0], axis=0, arr=S_it
-        )
-        best_correl = correl[np.argmax(np.abs(correl))]
-        signs[start:end] = np.sign(best_correl)
+        correl = corrmats(S0,S_it)
+        rows_oi = np.abs(correl).argmax(axis=0)
+        cols_oi = np.arange(correl.shape[1])
+        best_correls = correl[(rows_oi,cols_oi)]
+        signs[start:end] = np.sign(best_correls)
 
     return signs
 
 
-def compute_centroids_w_signs(S_all, A_all, labels, signs):
-    # correct signs
-    S_all = (signs * S_all).T
-    A_all = (signs * A_all).T
-
+def compute_centroids_w_signs(S_all, A_all, labels):
     # put clusters together
     S = []
     A = []
     for label in np.unique(labels):
         # subset
         idx = np.where(labels == label)[0]
-        S_clust = S_all[idx, :]
-        A_clust = A_all[idx, :]
+        S_clust = S_all[:, idx]
+        A_clust = A_all[:, idx]
 
         # save centroids
-        S.append(np.array(S_clust).T.mean(axis=1))
-        A.append(np.array(A_clust).T.mean(axis=1))
+        S.append(S_clust.mean(axis=1))
+        A.append(A_clust.mean(axis=1))
 
     # prepare output
     S = np.vstack(S).T
@@ -166,11 +172,12 @@ def compute_centroids_wo_signs(S_all, A_all, labels):
     return S, A
 
 
-def get_centroids(S_all, A_all, labels, signs=None):
-    if signs is None:
-        S_robust, A_robust = compute_centroids_wo_signs(S_all, A_all, labels)
+def get_centroids(S_all, A_all, labels, signs_corrected=False):
+    if signs_corrected:
+        S_robust, A_robust = compute_centroids_w_signs(S_all, A_all, labels)
     else:
-        S_robust, A_robust = compute_centroids_w_signs(S_all, A_all, labels, signs)
+        S_robust, A_robust = compute_centroids_wo_signs(S_all, A_all, labels)
+        
     return S_robust, A_robust
 
 
@@ -199,11 +206,21 @@ def icasso(data, S_all, A_all, iterations):
     return S_robust, A_robust, mem, t
 
 
-def robustica(data, S_all, A_all, iterations, do_pca=False):
+def robustica(data, S_all, A_all, iterations, do_pca=False, signs_corrected=True):
     n_components = int(S_all.shape[1]/iterations)
     mem = {}
     t = {}
-
+    
+    start = time.time()
+    mem["get_iteration_signs"], signs = memory_usage(
+        (get_iteration_signs, (S_all, n_components, iterations)),
+        **MEM_KWS
+    )
+    t["get_iteration_signs"] = time.time() - start
+    
+    S_all = np.multiply(S_all, signs)
+    A_all = np.multiply(A_all, signs)
+    
     if do_pca:
         start = time.time()
         mem["run_pca"], pcs = memory_usage((run_pca, (n_components, S_all)), **MEM_KWS)
@@ -221,16 +238,11 @@ def robustica(data, S_all, A_all, iterations, do_pca=False):
         )
         t["cluster_components"] = time.time() - start
 
-    start = time.time()
-    mem["get_iteration_signs"], signs = memory_usage(
-        (get_iteration_signs, (data.values, S_all, A_all, n_components, iterations)),
-        **MEM_KWS
-    )
-    t["get_iteration_signs"] = time.time() - start
+    
 
     start = time.time()
     mem["get_centroids"], (S_robust, A_robust) = memory_usage(
-        (get_centroids, (S_all, A_all, labels, signs)), **MEM_KWS
+        (get_centroids, (S_all, A_all, labels, signs_corrected)), **MEM_KWS
     )
     t["get_centroids"] = time.time() - start
 
@@ -288,14 +300,38 @@ def main():
     n_components = int(0.5 * data.shape[1])
     S_all, A_all = iterate_ica(data, n_components, iterations)
     results = []
+    S_robusts = {}
+    A_robusts = {}
     for algorithm in algorithms:
-        _, _, result = evaluate_performance(
+        print(algorithm)
+        S_robust, A_robust, result = evaluate_performance(
             data, S_all, A_all, algorithm, iterations
+        )
+        S_robusts[algorithm] = pd.DataFrame(
+            S_robust, 
+            index=['feature%s'%i for i in range(S_robust.shape[0])],
+            columns=['comp%s'%i for i in range(S_robust.shape[1])],
+        )
+        A_robusts[algorithm] = pd.DataFrame(
+            A_robust, 
+            index=['sample%s'%i for i in range(A_robust.shape[0])],
+            columns=['comp%s'%i for i in range(A_robust.shape[1])],
         )
         results.append(result)
         
     results = pd.concat(results)
     results.to_csv(output_file, **SAVE_PARAMS)
+    
+    for algorithm in algorithms:
+        S_robusts[algorithm].to_csv(
+            os.path.join(os.path.dirname(output_file),'%s-S.tsv.gz') % algorithm,
+            **SAVE_PARAMS
+        )
+        A_robusts[algorithm].to_csv(
+            os.path.join(os.path.dirname(output_file),'%s-A.tsv.gz') % algorithm,
+            **SAVE_PARAMS
+        )
+        
 
 
 ##### SCRIPT #####
