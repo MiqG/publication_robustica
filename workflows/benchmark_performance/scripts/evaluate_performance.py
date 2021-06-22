@@ -139,30 +139,20 @@ def infer_components_signs(S_all, n_components, iterations):
     """
     # components from first run are the reference
     S0 = S_all[:,0:n_components]
-    
-    # correlate reference run with the rest of runs to decide component signs
-    # we assume that only one component will be very similar to another between 
-    # runs
-    
+
+    # correlate best component with the rest of iterations to decide signs
     signs = np.full(S_all.shape[1], np.nan)
     signs[0:n_components] = 1
     for it in range(1, iterations):
         start = n_components * it
         end = start + n_components
         S_it = S_all[:, start:end]
-        sel_signs = np.full(S_it.shape[1], 1)
-        
-        # identify components
-        correl = corrmats(S0.T, S_it.T)
-        unassigned = np.arange(S_it.shape[1])
-        tmp_correl = correl
-        
+
+        correl = corrmats(S0.T,S_it.T)
         rows_oi = np.abs(correl).argmax(axis=0)
         cols_oi = np.arange(correl.shape[1])
-        sel_correl = tmp_correl[(rows_oi,cols_oi)]
-        sel_signs = np.sign(sel_correl)
-        
-        signs[start:end] = sel_signs
+        best_correls = correl[(rows_oi,cols_oi)]
+        signs[start:end] = np.sign(best_correls)
 
     return signs
 
@@ -394,6 +384,8 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--S_all_file", type=str)
     parser.add_argument("--A_all_file", type=str)
+    parser.add_argument("--S_true_file", type=str)
+    parser.add_argument("--A_true_file", type=str)
     parser.add_argument("--output_file", type=str)
     parser.add_argument("--iterations", type=int)
     parser.add_argument("--algorithms", type=str)
@@ -407,6 +399,8 @@ def main():
     args = parse_args()
     S_all_file = args.S_all_file
     A_all_file = args.A_all_file
+    S_true_file = args.S_true_file
+    A_true_file = args.A_true_file
     output_file = args.output_file
     iterations = args.iterations
     algorithms = args.algorithms.split(',')
