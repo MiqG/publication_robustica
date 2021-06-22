@@ -11,6 +11,9 @@ import pandas as pd
 import numpy as np
 from robustica import RobustICA
 
+# variables
+SEED = 1234
+
 """
 Development
 -----------

@@ -10,7 +10,7 @@ Outline
     - the default algorithm (Icasso): 
         2) Distance Matrix
         3) Agglomerative clustering
-        4) Compute centroids (correcting sign)
+        4) Compute centroids (correcting sign!)
     - robustica
         2) Correct signs
         3) Agglomerative clustering
@@ -33,48 +33,86 @@ RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
 
-ALGORITHMS = ['icasso','robustica','robustica_pca']
+ALGORITHMS = ['icasso','icasso_signs','robustica','robustica_pca']
+ITERATIONS = 100
+DATASETS = ['Sastry2019']
+N_COMPONENTS = {
+    'Sastry2019': 100
+}
 
 ##### RULES #####
 rule all:
     input:
-        # create sample data
-        os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz'),
+        # create ground truth dataset
+        expand(os.path.join(RESULTS_DIR,'files','validation_data','{dataset}'),dataset=DATASETS),
+        
+        # run ICA multiple times on datasets
+        expand(os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}'),dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}'),dataset=DATASETS),
         
         # evaluate performance
-        os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz'),
+        #os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz'),
         
         # make figures
-        os.path.join(RESULTS_DIR,'figures')
+        #os.path.join(RESULTS_DIR,'figures')
 
         
-rule create_sample_data:
-    params:
-        n_cols=500,
-        n_rows=20000
+rule create_validation_data:
+    input:
+        os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz')
     output:
-        os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz')
+        os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','X.tsv.gz'),
+        os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','S.tsv.gz'),
+        os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','A.tsv.gz'),
+        folder = directory(os.path.join(RESULTS_DIR,'files','validation_data','{dataset}'))
+    params:
+        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset]
     shell:
         """
-        python scripts/create_sample_data.py \
-                    --n_cols={params.n_cols} \
-                    --n_rows={params.n_rows} \
-                    --output_file={output}
+        python scripts/create_validation_data.py \
+                    --input_file={input} \
+                    --output_dir={output.folder} \
+                    --n_components={params.n_components}
         """
         
-    
+        
+rule compute_ica_iterations:
+    input:
+        os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','X.tsv.gz')
+    output:
+        directory(os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}')),
+        S = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}','S.pickle'),
+        A = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}','A.pickle')
+    params:
+        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset],
+        iterations = ITERATIONS
+    threads: 15
+    shell:
+        """
+        python scripts/compute_ica_iterations.py \
+                    --input_file={input} \
+                    --S_file={output.S} \
+                    --A_file={output.A} \
+                    --n_components={params.n_components} \
+                    --iterations={params.iterations} \
+                    --n_jobs={threads}
+        """
+        
+        
 rule evaluate_performance:
     input:
-        os.path.join(RESULTS_DIR,'files','sample_data.tsv.gz')
+        S = os.path.join(RESULTS_DIR,'files','ica_iterations-validation_data-S.pickle'),
+        A = os.path.join(RESULTS_DIR,'files','ica_iterations-validation_data-A.pickle')
     output:
         os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz')
     params:
         algorithms = ','.join(ALGORITHMS),
-        iterations = 100
+        iterations = ITERATIONS
     shell:
         """
         python scripts/evaluate_performance.py \
-                    --input_file={input} \
+                    --S_all_file={input.S} \
+                    --A_all_file={input.A} \
                     --output_file={output} \
                     --iterations={params.iterations} \
                     --algorithms={params.algorithms}

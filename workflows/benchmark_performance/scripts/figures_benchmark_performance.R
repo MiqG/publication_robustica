@@ -23,11 +23,11 @@ source(file.path(ROOT,'src','R','utils.R'))
 
 # Development
 # -----------
-RESULTS_DIR = file.path(ROOT,'results','benchmark_performance','files')
-performance_evaluation_file = file.path(RESULTS_DIR,'performance_evaluation.tsv.gz')
-S_icasso_file = file.path(RESULTS_DIR,'icasso-S.tsv.gz')
-S_robustica_file = file.path(RESULTS_DIR,'robustica-S.tsv.gz')
-S_robustica_pca_file = file.path(RESULTS_DIR,'robustica_pca-S.tsv.gz')
+#RESULTS_DIR = file.path(ROOT,'results','benchmark_performance','files')
+#performance_evaluation_file = file.path(RESULTS_DIR,'performance_evaluation.tsv.gz')
+#S_icasso_file = file.path(RESULTS_DIR,'icasso-S.tsv.gz')
+#S_robustica_file = file.path(RESULTS_DIR,'robustica-S.tsv.gz')
+#S_robustica_pca_file = file.path(RESULTS_DIR,'robustica_pca-S.tsv.gz')
 
 
 figs_dir = file.path(ROOT,'results','benchmark_performance','figures')
