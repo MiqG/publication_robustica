@@ -27,7 +27,7 @@ Outline
 import os
 
 ##### VARIABLES #####
-ROOT = '/home/miquel/projects/publication_robustica'
+ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
 DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')

@@ -4,7 +4,7 @@
 #
 # Script purpose
 # --------------
-# Run different algorithms to perform robust ICA and prove that our 
+# Run different algorithms to perform robust ICA and prove that our
 # sign correction allows for different clustering methods.
 #
 # Outline
@@ -15,9 +15,9 @@
 #   method to guess component signs.
 # - robustica_nosign: to check what happens when we don't correct component
 #   signs and use a different clustering metric.
-# - robustica_pca: to check if compressing the feature space speeds up the 
+# - robustica_pca: to check if compressing the feature space speeds up the
 #   algorithm.
-# 
+#
 # We will record:
 # - Performance
 #     - memory usage of every step of the algorithm
@@ -44,6 +44,8 @@ from memory_profiler import memory_usage
 import time
 import itertools
 
+from robustica import RobustICA, compute_iq, corrmats
+
 # variables
 SAVE_PARAMS = {"sep": "\t", "index": False, "compression": "gzip"}
 MEM_KWS = {
@@ -53,6 +55,15 @@ MEM_KWS = {
     "retval": True,
 }
 
+ALGORITHMS = {
+    "icasso": {
+        "robust_infer_signs": False,
+        "robust_dimreduce": False,
+        "robust_kws": {"n_clusters": 100},
+    },
+    "robustica_nosign": {"robust_infer_signs": False, "robust_dimreduce": True},
+    "robustica_pca": {"robust_infer_signs": True, "robust_dimreduce": True},
+}
 
 """
 Development
@@ -77,7 +88,7 @@ def load_data(S_all_file, A_all_file, S_true_file, A_true_file):
     # ICA runs
     S_all = pd.read_pickle(S_all_file).values
     A_all = pd.read_pickle(A_all_file).values
-    
+
     # Ground truth
     S_true = pd.read_table(S_true_file, index_col=0).values
     A_true = pd.read_table(A_true_file, index_col=0).values
@@ -85,258 +96,118 @@ def load_data(S_all_file, A_all_file, S_true_file, A_true_file):
     return S_true, A_true, S_all, A_all
 
 
-def compute_distance(X):
-    D = 1 - np.abs(np.corrcoef(X.T))
-    return D
+class icasso:
+    def __init__(self, **kws):
+        self.clustering = AgglomerativeClustering(
+            affinity="precomputed", linkage="average", **kws
+        )
+
+    def compute_distance(self, X):
+        return 1 - np.abs(np.corrcoef(X))
+
+    def fit(self, X):
+        self.clustering.fit(X)
+        self.labels_ = self.clustering.labels_
 
 
-def corrmats(X,Y):
-    """
-    Correlation matrix between rows in X and rows in Y.
-    """
-    X_cent = X - X.mean(axis=1).reshape(-1,1)
-    Y_cent = Y - Y.mean(axis=1).reshape(-1,1)
-    
-    num = X_cent.dot(Y_cent.T)
-    den = np.sqrt(
-        (X_cent**2).sum(axis=1).reshape(-1,1) * (Y_cent**2).sum(axis=1).reshape(1,-1)
-    )
-    r = num / den
-    return r
-    
-
-def cluster_components(X, n_components, **kws):
-    model = AgglomerativeClustering(n_clusters=n_components, linkage="average", **kws)
-    labels = model.fit_predict(X.T)  # features are in rows
-    return labels
+ALGORITHMS["icasso"]["robust_method"] = icasso
 
 
-def compute_iq(D, labels):
-    """
-    Compute cluster quality index.
-    """
-    abs_r = 1 - D
-    iqs = []
-    for label in np.unique(labels):
-        idx_cluster = labels == label
-        
-        avg_in = abs_r[idx_cluster,:][:,idx_cluster].mean()
-        avg_out = abs_r[idx_cluster,:][:,~idx_cluster].mean()
-        iq_cluster = avg_in - avg_out
-        iqs.append(iq_cluster)
-    
-    df = pd.DataFrame({
-        'label': np.unique(labels),
-        'iq': iqs
-    })
-    
-    return df
-        
-
-def infer_components_signs(S_all, n_components, iterations):
-    """
-    Correct direction of every run of ICA with respect to the first one.
-    """
-    # components from first run are the reference
-    S0 = S_all[:,0:n_components]
-
-    # correlate best component with the rest of iterations to decide signs
-    signs = np.full(S_all.shape[1], np.nan)
-    signs[0:n_components] = 1
-    for it in range(1, iterations):
-        start = n_components * it
-        end = start + n_components
-        S_it = S_all[:, start:end]
-
-        correl = corrmats(S0.T,S_it.T)
-        rows_oi = np.abs(correl).argmax(axis=0)
-        cols_oi = np.arange(correl.shape[1])
-        best_correls = correl[(rows_oi,cols_oi)]
-        signs[start:end] = np.sign(best_correls)
-
-    return signs
-
-
-def get_centroids(S_all, A_all, labels):
-    """
-    Based on https://github.com/SBRG/precise-db/blob/master/scripts/cluster_components.py
-    """
-    S = []
-    A = []
-    orientation = np.full(S_all.shape[1], np.nan)
-    for label in np.unique(labels):
-        # subset
-        idx = labels == label
-        S_clust = S_all[:, idx]
-        A_clust = A_all[:, idx]
-        
-        # first item is base component
-        Svec0 = S_clust[:, 0]
-        Avec0 = A_clust[:, 0]
-        
-        # Make sure base component is facing positive
-        if abs(min(Svec0)) > max(Svec0):
-            Svec0 = -Svec0
-            Avec0 = -Avec0
-            ori = [-1]
-        else:
-            ori = [1]
-        
-        S_single = [Svec0]
-        A_single = [Avec0]
-        
-        # Add in rest of components
-        for j in range(1, S_clust.shape[1]):
-            Svec = S_clust[:, j]
-            Avec = A_clust[:, j]
-            if pearsonr(Svec, Svec0)[0] > 0:
-                S_single.append(Svec)
-                A_single.append(Avec)
-                ori.append(1)
-            else:
-                S_single.append(-Svec)
-                A_single.append(-Avec)
-                ori.append(-1)
-                
-        # save centroids
-        S_single = np.array(S_single).T
-        A_single = np.array(A_single).T
-        S.append(S_single.mean(axis=1))
-        A.append(A_single.mean(axis=1))
-        
-        # save orientation
-        orientation[idx] = ori
-
-    # prepare output
-    S = np.vstack(S).T
-    A = np.vstack(A).T
-
-    return S, A, orientation
-
-
-def run_pca(n_components, S_all):
-    return PCA(n_components).fit_transform(S_all.T).T
-
-
-def icasso(S_all, A_all, iterations):
-    # init
-    n_components = int(S_all.shape[1]/iterations)
+def compute_robust_components(rica):
     mem = {}
     t = {}
-    
-    # compute distance
-    start = time.time()
-    mem["compute_distance"], D = memory_usage((compute_distance, (S_all,)), **MEM_KWS)
-    t["compute_distance"] = time.time() - start
-    
-    # cluster components
-    start = time.time()
-    mem["cluster_components"], labels = memory_usage(
-        (cluster_components, (D, n_components), {"affinity": "precomputed"}), **MEM_KWS
-    )
-    t["cluster_components"] = time.time() - start
-    
-    # get centroids
-    start = time.time()
-    mem["get_centroids"], (S_robust, A_robust, orientation) = memory_usage(
-        (get_centroids, (S_all, A_all, labels)), **MEM_KWS
-    )
-    t["get_centroids"] = time.time() - start
-    
-    # add clustering info
-    clustering_info = pd.DataFrame({
-        'component': np.arange(S_all.shape[1]),
-        'label': labels,
-        'sign': 1, # we don't deal with signs in icasso
-        'orientation': orientation
-    })
 
-    
-    return S_robust, A_robust, mem, t, clustering_info
+    # get objects
+    S_all = rica.S_all
+    A_all = rica.A_all
 
-
-def robustica(S_all, A_all, iterations, do_pca=False, correct_signs=True):
-    n_components = int(S_all.shape[1]/iterations)
-    mem = {}
-    t = {}
-    
-    # correct component signs across runs
-    if correct_signs:
+    # infer component signs across runs
+    if rica.robust_infer_signs:
         start = time.time()
         mem["infer_components_signs"], signs = memory_usage(
-            (infer_components_signs, (S_all, n_components, iterations)),
+            (
+                rica._infer_components_signs,
+                (S_all, rica.n_components, rica.robust_runs),
+            ),
             **MEM_KWS
         )
         t["infer_components_signs"] = time.time() - start
-        S_all = np.multiply(S_all, signs)
-        A_all = np.multiply(A_all, signs)
     else:
         signs = np.ones(S_all.shape[1])
-    
-    # compress feature dimensions with PCA
-    if do_pca:
-        start = time.time()
-        mem["run_pca"], X = memory_usage((run_pca, (n_components, S_all)), **MEM_KWS)
-        t["run_pca"] = time.time() - start
-    else:
-        X = S_all
-    
-    # cluster components
-    start = time.time()
-    mem["cluster_components"], labels = memory_usage(
-        (cluster_components, (X, n_components)), **MEM_KWS
-    )
-    t["cluster_components"] = time.time() - start
 
-    # get centroids
+    Y = S_all * signs
+
+    # reduce dimensions
+    if rica.robust_dimreduce != False:
+        start = time.time()
+        mem["run_pca"], Y = memory_usage(
+            (rica.dimreduce.fit_transform, (Y.T,)), **MEM_KWS
+        )
+        t["run_pca"] = time.time() - start
+        Y = Y.T
+
+    # compute dissimilarity
+    if "icasso" in str(rica.clustering):
+        start = time.time()
+        mem["compute_distance"], Y = memory_usage(
+            (rica.clustering.compute_distance, (Y.T,)), **MEM_KWS
+        )
+        t["compute_distance"] = time.time() - start
+
+    # cluster
     start = time.time()
-    mem["get_centroids"], (S_robust, A_robust, orientation) = memory_usage(
-        (get_centroids, (S_all, A_all, labels)), **MEM_KWS
+    mem["compute_distance"] = memory_usage((rica.clustering.fit, (Y.T,)), **MEM_KWS)
+    labels = rica.clustering.labels_
+    t["compute_distance"] = time.time() - start
+
+    # compute robust components
+    start = time.time()
+    (
+        mem["compute_distance"],
+        (S, A, S_std, A_std, clustering_stats, orientation),
+    ) = memory_usage(
+        (rica._compute_centroids, (S_all * signs, A_all * signs, labels)), **MEM_KWS
     )
-    t["get_centroids"] = time.time() - start
+    t["run_pca"] = time.time() - start
 
     # add clustering info
-    clustering_info = pd.DataFrame({
-        'component': np.arange(S_all.shape[1]),
-        'label': labels,
-        'sign': signs,
-        'orientation': orientation
-    })
-    
-    return S_robust, A_robust, mem, t, clustering_info
+    clustering_info = pd.DataFrame(
+        {
+            "component": np.arange(S_all.shape[1]),
+            "cluster_id": labels,
+            "sign": signs,
+            "orientation": orientation,
+        }
+    )
 
-
-def robustica_nosign(S_all, A_all, iterations):
-    return robustica(S_all, A_all, iterations, do_pca=True, correct_signs=False)
-
-
-def robustica_pca(S_all, A_all, iterations):
-    return robustica(S_all, A_all, iterations, do_pca=True)
+    return S, A, mem, t, clustering_info
 
 
 def compute_r2(Y_true, Y_pred):
     assert Y_true.shape == Y_pred.shape
-    
+
     r2 = np.full((Y_true.shape[1], Y_pred.shape[1]), np.nan)
     for i in range(Y_true.shape[1]):
         for j in range(Y_pred.shape[1]):
-            r2[i,j] = r2_score(Y_true[:,i], Y_pred[:,j])
+            r2[i, j] = r2_score(Y_true[:, i], Y_pred[:, j])
     return r2.max(axis=0)
-    
-    
+
+
 def score_prediction(Y_true, Y_pred):
     r2 = compute_r2(Y_true, Y_pred)
     p = np.abs(corrmats(Y_true.T, Y_pred.T)).max(axis=0)
-    d = pairwise_distances(Y_true.T, Y_pred.T, metric='euclidean').min(axis=0)
-    df = pd.DataFrame({
-        'max_r2': r2, 
-        'max_pearson': p,
-        'min_dist': d,
-        'label': np.arange(Y_pred.shape[1])
-    })
-    return df 
-    
-    
+    d = pairwise_distances(Y_true.T, Y_pred.T, metric="euclidean").min(axis=0)
+    df = pd.DataFrame(
+        {
+            "max_r2": r2,
+            "max_pearson": p,
+            "min_dist": d,
+            "cluster_id": np.arange(Y_pred.shape[1]),
+        }
+    )
+    return df
+
+
 def prep_performance(mem, t):
     performance = pd.concat(
         [
@@ -353,30 +224,32 @@ def prep_performance(mem, t):
     return performance
 
 
-def evaluate_performance(S_all, A_all, algorithm, iterations):
-    func = eval(algorithm)
-
+def evaluate_performance(rica):
     start = time.time()
     tmp_mem, (S_robust, A_robust, mem, t, clustering_info) = memory_usage(
-        (func, (S_all, A_all, iterations)), **MEM_KWS
+        (compute_robust_components, (rica,)), **MEM_KWS
     )
     tmp_t = time.time() - start
-    
+
     # prepare performance evaluation
     mem["evaluate_performance"] = tmp_mem
     t["evaluate_performance"] = tmp_t
     performance = prep_performance(mem, t)
-    performance['algorithm'] = algorithm
-    
+    performance["algorithm"] = algorithm
+
     # prepare clustering info
-    labels = clustering_info['label'].values
-    X = (S_all*clustering_info['sign'].values*clustering_info['orientation'].values).T
-    clustering_info['silhouette_euclidean'] = silhouette_samples(X, labels)
+    labels = clustering_info["cluster_id"].values
+    X = (
+        S_all * clustering_info["sign"].values * clustering_info["orientation"].values
+    ).T
+    clustering_info["silhouette_euclidean"] = silhouette_samples(X, labels)
     D = 1 - np.abs(np.corrcoef(S_all.T))
-    clustering_info['silhouette_pearson'] = silhouette_samples(D, labels, metric='precomputed')
-    clustering_info = pd.merge(clustering_info, compute_iq(D, labels), on='label')
-    clustering_info['algorithm'] = algorithm 
-    
+    clustering_info["silhouette_pearson"] = silhouette_samples(
+        D, labels, metric="precomputed"
+    )
+    clustering_info = pd.merge(clustering_info, compute_iq(D, labels), on="cluster_id")
+    clustering_info["algorithm"] = algorithm
+
     return S_robust, A_robust, performance, clustering_info
 
 
@@ -403,11 +276,13 @@ def main():
     A_true_file = args.A_true_file
     output_file = args.output_file
     iterations = args.iterations
-    algorithms = args.algorithms.split(',')
-    
+    algorithms = args.algorithms.split(",")
+
     # load data
-    S_true, A_true, S_all, A_all = load_data(S_all_file, A_all_file, S_true_file, A_true_file)
-    
+    S_true, A_true, S_all, A_all = load_data(
+        S_all_file, A_all_file, S_true_file, A_true_file
+    )
+
     # evaluate performance
     performances = []
     clustering_infos = []
@@ -415,43 +290,46 @@ def main():
     A_robusts = {}
     for algorithm in algorithms:
         print(algorithm)
-        S_robust, A_robust, performance, clustering_info = evaluate_performance(
-            S_all, A_all, algorithm, iterations
-        )
-        
+
+        rica_kws = ALGORITHMS[algorithm].copy()
+        rica_kws["n_components"] = int(S_all.shape[1] / iterations)
+        rica_kws["robust_runs"] = iterations
+        rica = RobustICA(**rica_kws)
+        rica.S_all = S_all
+        rica.A_all = A_all
+
+        S_robust, A_robust, performance, clustering_info = evaluate_performance(rica)
+
         # add robust components validation scores
         clustering_info = pd.merge(
             clustering_info,
             score_prediction(S_true, S_robust).assign(algorithm=algorithm),
-            on=['algorithm','label']
+            on=["algorithm", "cluster_id"],
         )
-        
+
         # prepare outpus
         S_robusts[algorithm] = pd.DataFrame(S_robust)
         A_robusts[algorithm] = pd.DataFrame(A_robust)
         performances.append(performance)
         clustering_infos.append(clustering_info)
-        
+
     performances = pd.concat(performances)
     clustering_infos = pd.concat(clustering_infos)
-    
+
     # save outputs
     performances.to_csv(output_file, **SAVE_PARAMS)
     output_dir = os.path.dirname(output_file)
     clustering_infos.to_csv(
-        os.path.join(output_dir,'clustering_info.tsv.gz'),
-        **SAVE_PARAMS
+        os.path.join(output_dir, "clustering_info.tsv.gz"), **SAVE_PARAMS
     )
     for algorithm in algorithms:
         S_robusts[algorithm].reset_index().to_csv(
-            os.path.join(output_dir,'%s-S.tsv.gz') % algorithm,
-            **SAVE_PARAMS
+            os.path.join(output_dir, "%s-S.tsv.gz") % algorithm, **SAVE_PARAMS
         )
         A_robusts[algorithm].reset_index().to_csv(
-            os.path.join(output_dir,'%s-A.tsv.gz') % algorithm,
-            **SAVE_PARAMS
+            os.path.join(output_dir, "%s-A.tsv.gz") % algorithm, **SAVE_PARAMS
         )
-        
+
 
 ##### SCRIPT #####
 if __name__ == "__main__":
