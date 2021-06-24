@@ -36,14 +36,10 @@ import argparse
 import os
 import pandas as pd
 import numpy as np
-from sklearn.decomposition import FastICA, PCA
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_samples, r2_score, pairwise_distances
-from scipy.stats import pearsonr
 from memory_profiler import memory_usage
 import time
-import itertools
-
 from robustica import RobustICA, compute_iq, corrmats
 
 # variables
@@ -61,7 +57,8 @@ ALGORITHMS = {
         "robust_dimreduce": False,
         "robust_kws": {"n_clusters": 100},
     },
-    "robustica_nosign": {"robust_infer_signs": False, "robust_dimreduce": True},
+    "robustica_nosign": {"robust_infer_signs": False, "robust_dimreduce": False},
+    "robustica": {"robust_infer_signs": True, "robust_dimreduce": False},
     "robustica_pca": {"robust_infer_signs": True, "robust_dimreduce": True},
 }
 
@@ -109,9 +106,7 @@ class icasso:
         self.clustering.fit(X)
         self.labels_ = self.clustering.labels_
 
-
 ALGORITHMS["icasso"]["robust_method"] = icasso
-
 
 def compute_robust_components(rica):
     mem = {}
@@ -235,20 +230,18 @@ def evaluate_performance(rica):
     mem["evaluate_performance"] = tmp_mem
     t["evaluate_performance"] = tmp_t
     performance = prep_performance(mem, t)
-    performance["algorithm"] = algorithm
 
     # prepare clustering info
     labels = clustering_info["cluster_id"].values
     X = (
-        S_all * clustering_info["sign"].values * clustering_info["orientation"].values
+        rica.S_all * clustering_info["sign"].values * clustering_info["orientation"].values
     ).T
+    clustering_info = pd.merge(clustering_info, compute_iq(X.T, labels), on="cluster_id")
     clustering_info["silhouette_euclidean"] = silhouette_samples(X, labels)
-    D = 1 - np.abs(np.corrcoef(S_all.T))
+    D = 1 - np.abs(np.corrcoef(rica.S_all.T))
     clustering_info["silhouette_pearson"] = silhouette_samples(
         D, labels, metric="precomputed"
     )
-    clustering_info = pd.merge(clustering_info, compute_iq(D, labels), on="cluster_id")
-    clustering_info["algorithm"] = algorithm
 
     return S_robust, A_robust, performance, clustering_info
 
@@ -299,7 +292,10 @@ def main():
         rica.A_all = A_all
 
         S_robust, A_robust, performance, clustering_info = evaluate_performance(rica)
-
+        # add algorithm
+        performance["algorithm"] = algorithm
+        clustering_info["algorithm"] = algorithm
+        
         # add robust components validation scores
         clustering_info = pd.merge(
             clustering_info,

@@ -33,7 +33,7 @@ RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
 
-ALGORITHMS = ['icasso','robustica_nosign','robustica_pca']
+ALGORITHMS = ['icasso','robustica_pca']
 ITERATIONS = 100
 DATASETS = ['Sastry2019']
 N_COMPONENTS = {
@@ -99,7 +99,7 @@ rule compute_ica_iterations:
         """
         
         
-rule evaluate_performance:
+rule evaluate_performance_algorithms:
     input:
         S = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}','S.pickle'),
         A = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}','A.pickle'),
@@ -121,8 +121,8 @@ rule evaluate_performance:
                     --iterations={params.iterations} \
                     --algorithms={params.algorithms}
         """
-    
-    
+
+
 rule figures_benchmark_performance:
     input:
         performance_evaluation = os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz'),
