@@ -1,0 +1,272 @@
+#
+# Author: Miquel Anglada Girotto
+# Contact: miquel [dot] anglada [at] crg [dot] eu
+#
+# Script purpose
+# --------------
+# Evaluate differenti clustering metrics on AgglomerativeClustering and different
+# clustering methods using absolute pearson correlation dissimilarity.
+
+import argparse
+import os
+import time
+import pandas as pd
+import numpy as np
+from sklearn.metrics import silhouette_samples
+from memory_profiler import memory_usage
+from robustica import RobustICA, compute_iq, corrmats
+
+# variables
+SAVE_PARAMS = {"sep": "\t", "index": False, "compression": "gzip"}
+MEM_KWS = {
+    "interval": 0.1,
+    "timestamps": True,
+    "include_children": True,
+    "retval": True,
+}
+
+RICA_KWS = {
+    "metrics": {
+        "euclidean": {"robust_infer_signs": True, "robust_dimreduce": True},
+        "l1": {"robust_infer_signs": True, "robust_dimreduce": True},
+        "l2": {"robust_infer_signs": True, "robust_dimreduce": True},
+        "manhattan": {"robust_infer_signs": True, "robust_dimreduce": True},
+        "cosine": {"robust_infer_signs": True, "robust_dimreduce": True},
+        "precomputed": {"robust_infer_signs": False, "robust_dimreduce": False},
+    },
+    "methods": {
+        "AgglomerativeClustering": {
+            "robust_kws": {"affinity": "precomputed", "linkage": "average"},
+        },
+        "AffinityPropagation": {"robust_kws": {"affinity": "precomputed"}},
+        "DBSCAN": {"robust_kws": {"metric": "precomputed"}},
+        "FeatureAgglomeration": {"robust_kws": {"affinity": "precomputed", "linkage":"average"}},
+        "OPTICS": {"robust_kws": {"metric": "precomputed"}},
+        "KMedoids": {"robust_kws": {"metric": "precomputed"}},
+        "CommonNNClustering": {"robust_kws": {"metric": "precomputed"}},
+    },
+    "methods_defaults": {}
+}
+
+"""
+Development
+-----------
+import os
+ROOT = '/home/miquel/projects/publication_robustica'
+RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
+PREP_DIR = os.path.join(ROOT,'prep')
+S_all_file = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle')
+A_all_file = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle')
+iterations = 100
+property_type = 'metrics'
+properties_oi = 'abs_pearson,euclidean'.split(',')
+"""
+
+
+##### FUNCTIONS #####
+def load_data(
+    S_all_file, A_all_file,
+):
+    # ICA runs
+    S_all = pd.read_pickle(S_all_file).values
+    A_all = pd.read_pickle(A_all_file).values
+
+    return S_all, A_all
+
+
+def compute_robust_components(rica):
+    mem = {}
+    t = {}
+
+    # get objects
+    S_all = rica.S_all
+    A_all = rica.A_all
+
+    # infer component signs across runs
+    if rica.robust_infer_signs:
+        start = time.time()
+        mem["infer_components_signs"], signs = memory_usage(
+            (
+                rica._infer_components_signs,
+                (S_all, rica.n_components, rica.robust_runs),
+            ),
+            **MEM_KWS
+        )
+        t["infer_components_signs"] = time.time() - start
+    else:
+        signs = np.ones(S_all.shape[1])
+
+    Y = S_all * signs
+
+    # reduce dimensions
+    if rica.robust_dimreduce != False:
+        start = time.time()
+        mem["run_pca"], Y = memory_usage(
+            (rica.dimreduce.fit_transform, (Y.T,)), **MEM_KWS
+        )
+        t["run_pca"] = time.time() - start
+        Y = Y.T
+
+    # compute dissimilarity
+    if np.isin(["precomputed"], list(rica.robust_kws.values()))[0]:
+        start = time.time()
+        mem["compute_distance"], Y = memory_usage(
+            (rica.robust_precompdist_func, (Y,)), **MEM_KWS
+        )
+        t["compute_distance"] = time.time() - start
+
+    # cluster
+    start = time.time()
+    mem["cluster_components"], _ = memory_usage(
+        (rica.clustering.fit, (Y.T,)), **MEM_KWS
+    )
+    labels = rica.clustering.labels_
+    t["cluster_components"] = time.time() - start
+
+    # compute robust components
+    start = time.time()
+    (
+        mem["compute_centroids"],
+        (S, A, S_std, A_std, clustering_stats, orientation),
+    ) = memory_usage(
+        (rica._compute_centroids, (S_all * signs, A_all * signs, labels)), **MEM_KWS
+    )
+    t["compute_centroids"] = time.time() - start
+
+    # add clustering info
+    clustering_info = pd.DataFrame(
+        {
+            "component": np.arange(S_all.shape[1]),
+            "cluster_id": labels,
+            "sign": signs,
+            "orientation": orientation,
+        }
+    )
+
+    return S, A, mem, t, clustering_info
+
+
+def prep_performance(mem, t):
+    performance = pd.concat(
+        [
+            pd.DataFrame(mem[key], columns=["memory", "timestamp"]).assign(function=key)
+            for key in mem.keys()
+        ]
+    )
+    performance = pd.merge(
+        performance,
+        pd.Series(t).reset_index().rename(columns={"index": "function", 0: "time"}),
+        on="function",
+    )
+
+    return performance
+
+
+def evaluate_performance(rica):
+    start = time.time()
+    tmp_mem, (S_robust, A_robust, mem, t, clustering_info) = memory_usage(
+        (compute_robust_components, (rica,)), **MEM_KWS
+    )
+    tmp_t = time.time() - start
+
+    # prepare performance evaluation
+    mem["evaluate_performance"] = tmp_mem
+    t["evaluate_performance"] = tmp_t
+    performance = prep_performance(mem, t)
+
+    # prepare clustering info
+    labels = clustering_info["cluster_id"].values
+    X = (
+        rica.S_all
+        * clustering_info["sign"].values
+        * clustering_info["orientation"].values
+    ).T
+    clustering_info = pd.merge(
+        clustering_info, compute_iq(X.T, labels), on="cluster_id"
+    )
+    clustering_info["silhouette_euclidean"] = silhouette_samples(X, labels)
+    D = 1 - np.abs(np.corrcoef(rica.S_all.T))
+    clustering_info["silhouette_pearson"] = silhouette_samples(
+        D, labels, metric="precomputed"
+    )
+
+    return S_robust, A_robust, performance, clustering_info
+
+
+def evaluate_clustering(property_type, property_oi, S_all, A_all, iterations):
+
+    # update rica_kws accordingly
+    rica_kws = RICA_KWS[property_type][property_oi].copy()
+    rica_kws["n_components"] = int(S_all.shape[1] / iterations)
+    rica_kws["robust_runs"] = iterations
+    if property_type == "metrics":
+        rica_kws["robust_kws"] = {"affinity": property_oi, "linkage": "average"}
+    elif property_type == "methods":
+        rica_kws["robust_infer_signs"] = False
+        rica_kws["robust_dimreduce"] = False
+        rica_kws["robust_method"] = property_oi
+
+    print(rica_kws)
+
+    rica = RobustICA(**rica_kws)
+    rica.S_all = S_all
+    rica.A_all = A_all
+
+    S_robust, A_robust, performance, clustering_info = evaluate_performance(rica)
+
+    # add info current loop
+    performance["property_type"] = property_type
+    clustering_info["property_type"] = property_type
+    performance["property_oi"] = property_oi
+    clustering_info["property_oi"] = property_oi
+
+    return performance, clustering_info
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--S_all_file", type=str)
+    parser.add_argument("--A_all_file", type=str)
+    parser.add_argument("--output_file", type=str)
+    parser.add_argument("--iterations", type=int)
+    parser.add_argument("--property_type", type=str)
+    parser.add_argument("--properties_oi", type=str)
+    args = parser.parse_args()
+
+    return args
+
+
+def main():
+    args = parse_args()
+    S_all_file = args.S_all_file
+    A_all_file = args.A_all_file
+    output_file = args.output_file
+    iterations = args.iterations
+    property_type = args.property_type
+    properties_oi = args.properties_oi.split(",")
+
+    # load data
+    S_all, A_all = load_data(S_all_file, A_all_file)
+
+    # evaluate performance
+    performances, clustering_infos = [], []
+    for property_oi in properties_oi:
+        p, c = evaluate_clustering(property_type, property_oi, S_all, A_all, iterations)
+        performances.append(p)
+        clustering_infos.append(c)
+
+    performances = pd.concat(performances)
+    clustering_infos = pd.concat(clustering_infos)
+
+    # save outputs
+    performances.to_csv(output_file, **SAVE_PARAMS)
+    output_dir = os.path.dirname(output_file)
+    clustering_infos.to_csv(
+        os.path.join(output_dir, "clustering_info.tsv.gz"), **SAVE_PARAMS
+    )
+
+
+##### SCRIPT #####
+if __name__ == "__main__":
+    main()
+    print("Done!")

@@ -1,0 +1,190 @@
+"""
+Workflow purpose
+----------------
+Evaluate the performance of different metrics using agglomerative clustering and
+different clustering algorithms using the best metric.
+
+Outline
+-------
+1. Use our benchmark dataset to compute robust independent components with any
+available metric in `sklearn` using AgglomerativeClustering:
+    - euclidean
+    - l1
+    - l2
+    - manhattan
+    - cosine
+    - precomputed (abs_pearson)
+2. Use benchmark dataset to compute robust independent components with available default clustering algorithms (if distance not precomputed, we always compress dimensions with PCA):
+    - Icasso (abs_pearson + AgglomerativeClustering)
+    - AffinityPropagation
+    - AgglomerativeClustering
+    - Birch
+    - DBSCAN
+    - FeatureAgglomeration
+    - KMeans
+    - MiniBatchKMeans
+    - Meanshift
+    - OPTICS
+    - SpectralClustering
+    - KMedoids
+    - CommonNNClustering
+3. make figures
+"""
+
+import os
+
+##### VARIABLES #####
+ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
+DATA_DIR = os.path.join(ROOT,'data')
+RAW_DIR = os.path.join(DATA_DIR,'raw')
+PREP_DIR = os.path.join(DATA_DIR,'prep')
+RESULTS_DIR = os.path.join(ROOT,'results','benchmark_clustering')
+
+SAVE_PARAMS = {"sep": "\t", "index": False, "compression": "gzip"}
+
+PROPERTIES_OI = {
+    'metrics' : ['euclidean','l1','l2','manhattan','cosine','precomputed'],
+    'methods' : [
+        'AgglomerativeClustering','AffinityPropagation','DBSCAN',
+        'FeatureAgglomeration','OPTICS',
+        'KMedoids','CommonNNClustering'
+    ] 
+}
+
+ITERATIONS = 100
+DATASETS = ['Sastry2019']
+N_COMPONENTS = {
+    'Sastry2019': 100
+}
+
+#### RULES ####
+rule all:
+    input:
+        # evaluate clustering metrics
+        expand(os.path.join(RESULTS_DIR,'files','metrics','{dataset}',
+                            '{property_oi}','performance_evaluation.tsv.gz'),
+               property_oi=PROPERTIES_OI['metrics'],dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','metrics','{dataset}',
+                            'performance_evaluation_merged.tsv.gz'), dataset=DATASETS),
+        # evaluate clustering methods
+        expand(os.path.join(RESULTS_DIR,'files','methods','{dataset}',
+                            '{property_oi}','performance_evaluation.tsv.gz'),
+               property_oi=PROPERTIES_OI['methods'],dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','methods','{dataset}',
+                            'performance_evaluation_merged.tsv.gz'), dataset=DATASETS),
+        # make figures 
+        expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
+        
+rule evaluate_clustering_metrics:
+    input:
+        S = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle'),
+        A = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle')
+    output:
+        performance = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','{property_oi}','performance_evaluation.tsv.gz'),
+        clustering = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','{property_oi}','clustering_info.tsv.gz')
+    params:
+        property_type = 'metrics',
+        properties_oi = '{property_oi}',
+        iterations = ITERATIONS
+    shell:
+        """
+        python scripts/evaluate_clustering.py \
+                    --S_all_file={input.S} \
+                    --A_all_file={input.A} \
+                    --property_type={params.property_type} \
+                    --properties_oi={params.properties_oi} \
+                    --output_file={output.performance} \
+                    --iterations={params.iterations} \
+        """
+
+        
+rule merge_clustering_metrics:
+    input:
+        performance = [
+            os.path.join(RESULTS_DIR,'files','metrics',
+                         '{dataset}','{property_oi}','performance_evaluation.tsv.gz'
+                        ).format(property_oi=property_oi, dataset=dataset) 
+         for property_oi in PROPERTIES_OI['metrics'] 
+         for dataset in DATASETS],
+        clustering = [
+            os.path.join(RESULTS_DIR,'files','metrics',
+                         '{dataset}','{property_oi}','clustering_info.tsv.gz'
+                        ).format(property_oi=property_oi, dataset=dataset) 
+         for property_oi in PROPERTIES_OI['metrics'] 
+         for dataset in DATASETS]
+    output:
+        performance = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','performance_evaluation_merged.tsv.gz'),
+        clustering = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','clustering_info_merged.tsv.gz')
+    run:
+        import pandas as pd
+        for key, filenames in input.items():
+            df = pd.concat([pd.read_table(filename) for filename in filenames])
+            df.to_csv(output[key], **SAVE_PARAMS)
+        print('Done!')
+    
+    
+rule evaluate_clustering_methods:
+    input:
+        S = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle'),
+        A = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle')
+    output:
+        performance = os.path.join(RESULTS_DIR,'files','methods','{dataset}','{property_oi}','performance_evaluation.tsv.gz'),
+        clustering = os.path.join(RESULTS_DIR,'files','methods','{dataset}','{property_oi}','clustering_info.tsv.gz')
+    params:
+        property_type = 'methods',
+        properties_oi = '{property_oi}',
+        iterations = ITERATIONS
+    shell:
+        """
+        python scripts/evaluate_clustering.py \
+                    --S_all_file={input.S} \
+                    --A_all_file={input.A} \
+                    --property_type={params.property_type} \
+                    --properties_oi={params.properties_oi} \
+                    --output_file={output.performance} \
+                    --iterations={params.iterations} \
+        """
+        
+
+rule merge_clustering_methods:
+    input:
+        performance = [
+            os.path.join(RESULTS_DIR,'files','methods',
+                         '{dataset}','{property_oi}','performance_evaluation.tsv.gz'
+                        ).format(property_oi=property_oi, dataset=dataset) 
+         for property_oi in PROPERTIES_OI['methods'] 
+         for dataset in DATASETS],
+        clustering = [
+            os.path.join(RESULTS_DIR,'files','methods',
+                         '{dataset}','{property_oi}','clustering_info.tsv.gz'
+                        ).format(property_oi=property_oi, dataset=dataset) 
+         for property_oi in PROPERTIES_OI['methods'] 
+         for dataset in DATASETS]
+    output:
+        performance = os.path.join(RESULTS_DIR,'files','methods','{dataset}','performance_evaluation_merged.tsv.gz'),
+        clustering = os.path.join(RESULTS_DIR,'files','methods','{dataset}','clustering_info_merged.tsv.gz')
+    run:
+        import pandas as pd
+        for key, filenames in input.items():
+            df = pd.concat([pd.read_table(filename) for filename in filenames])
+            df.to_csv(output[key], **SAVE_PARAMS)
+        print('Done!')
+        
+        
+rule figures_benchmark_clustering:
+    input:
+        metrics_performance = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','performance_evaluation_merged.tsv.gz'),
+        metrics_clustering = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','clustering_info_merged.tsv.gz'),
+        methods_performance = os.path.join(RESULTS_DIR,'files','methods','{dataset}','performance_evaluation_merged.tsv.gz'),
+        methods_clustering = os.path.join(RESULTS_DIR,'files','methods','{dataset}','clustering_info_merged.tsv.gz')
+    output:
+        directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
+    shell:
+        """
+        Rscript scripts/figures_benchmark_clustering.R \
+                    --metrics_performance_file={input.metrics_performance} \
+                    --metrics_clustering_file={input.metrics_clustering} \
+                    --methods_performance_file={input.methods_performance} \
+                    --methods_clustering_file={input.methods_clustering} \
+                    --figs_dir={output}
+        """
