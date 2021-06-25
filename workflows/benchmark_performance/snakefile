@@ -33,7 +33,7 @@ RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
 
-ALGORITHMS = ['icasso','robustica_pca']
+ALGORITHMS = ['icasso','robustica_nosign','robustica','robustica_pca']
 ITERATIONS = 100
 DATASETS = ['Sastry2019']
 N_COMPONENTS = {
@@ -43,68 +43,19 @@ N_COMPONENTS = {
 ##### RULES #####
 rule all:
     input:
-        # create ground truth dataset
-        expand(os.path.join(RESULTS_DIR,'files','validation_data','{dataset}'),dataset=DATASETS),
-        
-        # run ICA multiple times on datasets
-        expand(os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}'),dataset=DATASETS),
-        expand(os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}'),dataset=DATASETS),
-        
         # evaluate performance
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),dataset=DATASETS),
         
         # make figures
-        #os.path.join(RESULTS_DIR,'figures')
-
+        expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
         
-rule create_validation_data:
+        
+rule evaluate_performance:
     input:
-        os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz')
-    output:
-        os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','X.tsv.gz'),
-        os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','S.tsv.gz'),
-        os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','A.tsv.gz'),
-        folder = directory(os.path.join(RESULTS_DIR,'files','validation_data','{dataset}'))
-    params:
-        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset]
-    shell:
-        """
-        python scripts/create_validation_data.py \
-                    --input_file={input} \
-                    --output_dir={output.folder} \
-                    --n_components={params.n_components}
-        """
-        
-        
-rule compute_ica_iterations:
-    input:
-        os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','X.tsv.gz')
-    output:
-        directory(os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}')),
-        S = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}','S.pickle'),
-        A = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}','A.pickle')
-    params:
-        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset],
-        iterations = ITERATIONS
-    threads: 15
-    shell:
-        """
-        python scripts/compute_ica_iterations.py \
-                    --input_file={input} \
-                    --S_file={output.S} \
-                    --A_file={output.A} \
-                    --n_components={params.n_components} \
-                    --iterations={params.iterations} \
-                    --n_jobs={threads}
-        """
-        
-        
-rule evaluate_performance_algorithms:
-    input:
-        S = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}','S.pickle'),
-        A = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','{dataset}','A.pickle'),
-        S_true = os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','S.tsv.gz'),
-        A_true = os.path.join(RESULTS_DIR,'files','validation_data','{dataset}','A.tsv.gz')
+        S = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle'),
+        A = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle'),
+        S_true = os.path.join(PREP_DIR,'benchmark_data','{dataset}','S.tsv.gz'),
+        A_true = os.path.join(PREP_DIR,'benchmark_data','{dataset}','A.tsv.gz')
     output:
         os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz')
     params:
@@ -125,19 +76,15 @@ rule evaluate_performance_algorithms:
 
 rule figures_benchmark_performance:
     input:
-        performance_evaluation = os.path.join(RESULTS_DIR,'files','performance_evaluation.tsv.gz'),
-        S_icasso = os.path.join(RESULTS_DIR,'files','icasso-S.tsv.gz'),
-        S_robustica = os.path.join(RESULTS_DIR,'files','robustica-S.tsv.gz'),
-        S_robustica_pca = os.path.join(RESULTS_DIR,'files','robustica_pca-S.tsv.gz')
+        performance_evaluation = os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),
+        clustering_info = os.path.join(RESULTS_DIR,'files','{dataset}','clustering_info.tsv.gz')
     output:
-        directory(os.path.join(RESULTS_DIR,'figures'))
+        directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
     shell:
         """
         Rscript scripts/figures_benchmark_performance.R \
                     --performance_evaluation_file={input.performance_evaluation} \
-                    --S_icasso_file={input.S_icasso} \
-                    --S_robustica_file={input.S_robustica} \
-                    --S_robustica_pca_file={input.S_robustica_pca} \
+                    --clustering_info_file={input.clustering_info} \
                     --figs_dir={output}
         """
         

@@ -9,12 +9,14 @@
 #
 # Outline
 # -------
+# - memory usage and time spent for every algorithm
+# - silhouette scores of every algorithm
 
 
 require(tidyverse)
 require(ggpubr)
 require(pheatmap)
-
+require(reshape2)
 
 ROOT = here::here()
 source(file.path(ROOT,'src','R','utils.R'))
@@ -23,14 +25,10 @@ source(file.path(ROOT,'src','R','utils.R'))
 
 # Development
 # -----------
-#RESULTS_DIR = file.path(ROOT,'results','benchmark_performance','files')
-#performance_evaluation_file = file.path(RESULTS_DIR,'performance_evaluation.tsv.gz')
-#S_icasso_file = file.path(RESULTS_DIR,'icasso-S.tsv.gz')
-#S_robustica_file = file.path(RESULTS_DIR,'robustica-S.tsv.gz')
-#S_robustica_pca_file = file.path(RESULTS_DIR,'robustica_pca-S.tsv.gz')
-
-
-figs_dir = file.path(ROOT,'results','benchmark_performance','figures')
+# RESULTS_DIR = file.path(ROOT,'results','benchmark_performance','files')
+# performance_evaluation_file = file.path(RESULTS_DIR,'Sastry2019','performance_evaluation.tsv.gz')
+# clustering_info_file = file.path(RESULTS_DIR,'Sastry2019','clustering_info.tsv.gz')
+# figs_dir = file.path(ROOT,'results','benchmark_performance','figures','Sastry2019')
 
 ##### FUNCTIONS #####
 get_relative_timestamp = function(x){
@@ -49,7 +47,7 @@ plot_performance_profile = function(df){
                shape=20, point.size=0.0001, 
                palette='uchicago',alpha=0.5) + 
     facet_wrap(~algorithm, scales='free_x', ncol=1) + 
-    guides(color=guide_legend(ncol=2)) + 
+    guides(color=guide_legend(ncol=1)) + 
     labs(x='Time (s)', y='Memory (MiB)', color='Function') + 
     theme_pubr(border = TRUE) 
     
@@ -87,10 +85,34 @@ plot_S_correlations = function(Ss){
 }
 
 
-make_plots = function(df, Ss){
+plot_silhouettes = function(df){
+    # get mean silhouette per cluster
+    X = df %>%
+        group_by(algorithm, cluster_id) %>%
+        summarise(
+            `1 - abs(Pearson)` = mean(silhouette_pearson),
+            `Euclidean` = mean(silhouette_euclidean)
+        ) %>%
+        melt(id.vars = c('algorithm','cluster_id'))
+    
+    palette = get_palette('Paired',length(unique(X[['algorithm']])))
+    
+    plts = list()
+    plts[['clustering-silhouettes']] = X %>%
+        ggviolin(x='variable', y='value', fill='algorithm', 
+                 color=NA, palette=palette) + 
+        geom_boxplot(aes(fill=algorithm), width=.1, alpha=1, 
+                     position = position_dodge(0.8)) + 
+        labs(x='Metric', y='Silhouette', fill='Algorithm')
+    
+    return(plts)
+}
+
+
+make_plots = function(performance_evaluation, clustering_info){
     plts = list(
-        plot_performance_profile(df),
-        plot_S_correlations(Ss)
+        plot_performance_profile(performance_evaluation),
+        plot_silhouettes(clustering_info)
     )
     plts = do.call(c,plts)
     return(plts)
@@ -108,12 +130,9 @@ save_plot = function(plt, plt_name, extension='.pdf',
 
 
 save_plots = function(plts, figs_dir){
-    save_plot(plts[['mem_time-scatter']],'mem_time-scatter','.png',figs_dir, width=12,height=15)
+    save_plot(plts[['mem_time-scatter']],'mem_time-scatter','.png',figs_dir, width=12,height=20)
     
-    lapply(grep('corr',names(plts),value=TRUE), function(plt_name){
-        save_plot(plts[[plt_name]],
-                  plt_name, '.pdf', figs_dir, width=12, height=12)
-    })
+    save_plot(plts[['clustering-silhouettes']],'clustering-silhouettes','.pdf',figs_dir, width=15,height=12)
 }
 
 
@@ -121,25 +140,21 @@ main = function(){
     args = getParsedArgs()
 
     performance_evaluation_file = args$performance_evaluation_file
-    S_icasso_file = args$S_icasso_file
-    S_robustica_file = args$S_robustica_file
-    S_robustica_pca_file = args$S_robustica_pca_file
+    clustering_info_file = args$clustering_info_file
     figs_dir = args$figs_dir
     
     dir.create(figs_dir, recursive = TRUE)
     
     # load data
     performance_evaluation = read_tsv(performance_evaluation_file) %>% 
+        filter(`function` != 'evaluate_performance') %>%
         group_by(algorithm) %>% 
-        mutate(rel_timestamp = get_relative_timestamp(timestamp))
+        mutate(rel_timestamp = get_relative_timestamp(timestamp),
+               `function` = paste0(`function`,'()')
+              )
+    clustering_info = read_tsv(clustering_info_file)
     
-    Ss = list(
-        'icasso'=read_tsv(S_icasso_file),
-        'robustica'=read_tsv(S_robustica_file),
-        'robustica_pca'=read_tsv(S_robustica_pca_file)
-    )
-    
-    plts = make_plots(performance_evaluation, Ss)
+    plts = make_plots(performance_evaluation, clustering_info)
     save_plots(plts, figs_dir)
 }
 

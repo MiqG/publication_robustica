@@ -151,19 +151,19 @@ def compute_robust_components(rica):
 
     # cluster
     start = time.time()
-    mem["compute_distance"] = memory_usage((rica.clustering.fit, (Y.T,)), **MEM_KWS)
+    mem["cluster_components"], _ = memory_usage((rica.clustering.fit, (Y.T,)), **MEM_KWS)
     labels = rica.clustering.labels_
-    t["compute_distance"] = time.time() - start
+    t["cluster_components"] = time.time() - start
 
     # compute robust components
     start = time.time()
     (
-        mem["compute_distance"],
+        mem["compute_centroids"],
         (S, A, S_std, A_std, clustering_stats, orientation),
     ) = memory_usage(
         (rica._compute_centroids, (S_all * signs, A_all * signs, labels)), **MEM_KWS
     )
-    t["run_pca"] = time.time() - start
+    t["compute_centroids"] = time.time() - start
 
     # add clustering info
     clustering_info = pd.DataFrame(
