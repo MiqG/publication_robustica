@@ -12,18 +12,73 @@ ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
 DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
-RESULTS_DIR = os.path.join(ROOT,'results','compare_clustering_methods')
+RESULTS_DIR = os.path.join(ROOT,'results','case_study')
 
-CANCER_TYPES = ['LGG']
+DATASETS = ['LGG']
 CLUSTERING_METHODS = ['DBSCAN']
+
 
 ##### RULES #####
 rule all:
     input:
+        # cluster ICA runs
+        expand(os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','S.tsv.gz'), dataset=DATASETS),
+        
         # make figures
-        expand(os.path.join(RESULTS_DIR,'figures','{cancer}-{method}'), cancer=CANCER_TYPES, method=CLUSTERING_METHODS)
+        #expand(os.path.join(RESULTS_DIR,'figures','{cancer}-{method}'), cancer=CANCER_TYPES, method=CLUSTERING_METHODS)
         
         
+rule cluster_ica_runs:
+    input:
+        S_all = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle'),
+        A_all = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle')
+    output:
+        S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','S.tsv.gz'),
+        A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','A.tsv.gz'),
+        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','stats.tsv.gz')
+    params:
+        n_components = 100,
+        robust_runs = 100
+    run:
+        import pandas as pd
+        import numpy as np
+        import robustica
+        
+        SAVE_PARAMS = {'sep':'\t', 'compression':'gzip', 'index':False}
+        
+        # load data
+        S_all = pd.read_pickle(input.S_all)
+        A_all = pd.read_pickle(input.A_all)
+        
+        # cluster
+        rica = robustica.RobustICA(
+            n_components = params.n_components, 
+            robust_runs = params.robust_runs,
+            robust_kws = {"affinity": "precomputed", "linkage": "average"}
+        )
+        S, A, S_std, A_std, clustering_stats, signs, orientation = rica._compute_robust_components(S_all.values, A_all.values) 
+        
+        # evaluate clusters
+        evaluation = rica.evaluate_clustering(S_all.values, rica.clustering.labels_, signs, orientation)
+        evaluation.columns = ['cluster_id','silhouette_euclidean','iq']
+        D = 1 - np.abs(np.corrcoef(S_all.values.T))
+        eval_pearson = rica.evaluate_clustering(D, rica.clustering.labels_, signs, orientation, metric='precomputed')
+        eval_pearson = eval_pearson[['cluster_id','mean_silhouette']]\
+                            .rename(columns={'mean_silhouette':'silhouette_pearson'})
+        evaluation = pd.merge(evaluation, eval_pearson, on='cluster_id')
+        
+        # prepare outputs
+        S = pd.DataFrame(S, index=S_all.index).reset_index()
+        A = pd.DataFrame(A, index=A_all.index).reset_index()
+        stats = pd.merge(clustering_stats, evaluation, on='cluster_id')
+        
+        # save
+        S.to_csv(output.S, **SAVE_PARAMS)
+        A.to_csv(output.A, **SAVE_PARAMS)
+        stats.to_csv(output.stats, **SAVE_PARAMS)
+        
+    
+    
 rule figures_interpret_ica:
     input:
         S = os.path.join(RESULTS_DIR,'files','cluster_iterations-{cancer}-{method}','S_mean.tsv.gz'),

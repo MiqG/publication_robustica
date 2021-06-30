@@ -42,7 +42,7 @@ rule all:
         expand(os.path.join(RESULTS_DIR,'files','evaluate_iterations-{dataset}_{max_iter}_{tol}'), max_iter=MAX_ITERS, tol=TOLS, dataset=DATASETS),
         
         # make figures
-        #expand(os.path.join(RESULTS_DIR,'figures','{dataset}'), dataset=DATASETS)
+        expand(os.path.join(RESULTS_DIR,'figures','{dataset}'), dataset=DATASETS)
         
 
 rule evaluate_ica_iterations:

@@ -19,7 +19,19 @@ RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 
 CANCER_TYPES = ['BRCA','LGG']
-    
+
+ITERATIONS = 100
+DATASETS = ['Sastry2019','LGG']
+N_COMPONENTS = {
+    'Sastry2019': 100,
+    'LGG': 100
+}
+
+FILES_ICA_ITERATIONS = {
+    'Sastry2019': os.path.join(PREP_DIR,'benchmark_data','Sastry2019','X.tsv.gz'),
+    'LGG': os.path.join(PREP_DIR,'genexpr','LGG.tsv.gz')
+}
+
 ##### RULES #####
 rule all:
     input:
@@ -33,7 +45,13 @@ rule all:
         os.path.join(PREP_DIR,'genexpr','Sastry2019.tsv.gz'),
         
         # prepare mutations TCGA
-        expand(os.path.join(PREP_DIR,'snv','{cancer}.tsv.gz'), cancer=CANCER_TYPES)
+        expand(os.path.join(PREP_DIR,'snv','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
+        
+        # create benchmark dataset
+        expand(os.path.join(PREP_DIR,'benchmark_data','{dataset}'),dataset=['Sastry2019']),
+        
+        # run ICA multiple times on datasets
+        expand(os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}'),dataset=DATASETS)
     
     
 rule prepare_metadata:
@@ -106,4 +124,46 @@ rule compute_gene_mutation_frequency_tcga:
                     --snv_file={input.snv_file} \
                     --metadata_file={input.metadata_file} \
                     --output_file={output}
+        """
+        
+
+rule create_benchmark_data:
+    input:
+        os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz')
+    output:
+        os.path.join(PREP_DIR,'benchmark_data','{dataset}','X.tsv.gz'),
+        os.path.join(PREP_DIR,'benchmark_data','{dataset}','S.tsv.gz'),
+        os.path.join(PREP_DIR,'benchmark_data','{dataset}','A.tsv.gz'),
+        folder = directory(os.path.join(PREP_DIR,'benchmark_data','{dataset}'))
+    params:
+        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset]
+    shell:
+        """
+        python scripts/create_benchmark_data.py \
+                    --input_file={input} \
+                    --output_dir={output.folder} \
+                    --n_components={params.n_components}
+        """
+        
+        
+rule compute_ica_iterations:
+    input:
+        lambda wildcards: FILES_ICA_ITERATIONS[wildcards.dataset]
+    output:
+        directory(os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}')),
+        S = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle'),
+        A = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle')
+    params:
+        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset],
+        iterations = ITERATIONS
+    threads: 15
+    shell:
+        """
+        python scripts/compute_ica_iterations.py \
+                    --input_file={input} \
+                    --S_file={output.S} \
+                    --A_file={output.A} \
+                    --n_components={params.n_components} \
+                    --iterations={params.iterations} \
+                    --n_jobs={threads}
         """

@@ -1,0 +1,35 @@
+"""
+Workflow purpose
+----------------
+Evaluate the performance of different metrics using agglomerative clustering and
+different clustering algorithms using the best metric.
+
+Outline
+-------
+1. Why inferring the signs of components can be useful
+"""
+
+import os
+
+##### VARIABLES #####
+ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
+DATA_DIR = os.path.join(ROOT,'data')
+RAW_DIR = os.path.join(DATA_DIR,'raw')
+PREP_DIR = os.path.join(DATA_DIR,'prep')
+RESULTS_DIR = os.path.join(ROOT,'results','intro_figures')
+
+
+##### RULES #####
+rule all:
+    input:
+        # figures sign problem
+        os.path.join(RESULTS_DIR,'figures','sign_problem')
+
+rule the_ica_sign_problem:
+    output:
+        directory(os.path.join(RESULTS_DIR,'figures','sign_problem'))
+    shell:
+        """
+        python scripts/the_ica_sign_problem.py \
+                    --output_dir={output}
+        """
