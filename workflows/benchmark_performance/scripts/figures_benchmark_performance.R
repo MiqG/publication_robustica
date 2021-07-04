@@ -17,6 +17,7 @@ require(tidyverse)
 require(ggpubr)
 require(pheatmap)
 require(reshape2)
+require(ggrepel)
 
 ROOT = here::here()
 source(file.path(ROOT,'src','R','utils.R'))
@@ -90,20 +91,31 @@ plot_silhouettes = function(df){
     X = df %>%
         group_by(algorithm, cluster_id) %>%
         summarise(
-            `1 - abs(Pearson)` = mean(silhouette_pearson),
-            `Euclidean` = mean(silhouette_euclidean)
+            silhouette_pearson = mean(silhouette_pearson),
+            silhouette_euclidean = mean(silhouette_euclidean)
         ) %>%
-        melt(id.vars = c('algorithm','cluster_id'))
+        mutate(algorithm = factor(algorithm, levels = c('icasso','robustica_nosign','robustica','robustica_pca')))
     
     palette = get_palette('Paired',length(unique(X[['algorithm']])))
     
     plts = list()
-    plts[['clustering-silhouettes']] = X %>%
-        ggviolin(x='variable', y='value', fill='algorithm', 
-                 color=NA, palette=palette) + 
-        geom_boxplot(aes(fill=algorithm), width=.1, alpha=1, 
-                     position = position_dodge(0.8)) + 
-        labs(x='Metric', y='Silhouette', fill='Algorithm')
+    plts[['clustering-silhouettes-violins']] = X %>%
+        ggviolin(x='algorithm', y='silhouette_pearson', 
+                 fill='algorithm', color=NA, palette='Paired') + 
+        guides(fill=FALSE) +
+        geom_boxplot(width=0.1) +
+        labs(x='Algorithm', y='Silhouette Score') +
+        theme_pubr(x.text.angle = 70)
+    
+    plts[['clustering-silhouettes-scatter']] = X %>%
+        filter(algorithm %in% c('robustica_pca','icasso')) %>%
+        ggplot(aes(x=silhouette_pearson, y=silhouette_euclidean)) +
+        geom_text(aes(label=cluster_id)) +
+        theme_pubr() +
+        labs(title='Clustering Silhouette Scores', 
+             x='1 - abs(Pearson Corr.)', 
+             y='Euclidean') +
+        geom_abline(intercept = 0, slope = 1, linetype = 'dashed')
     
     return(plts)
 }
@@ -131,8 +143,8 @@ save_plot = function(plt, plt_name, extension='.pdf',
 
 save_plots = function(plts, figs_dir){
     save_plot(plts[['mem_time-scatter']],'mem_time-scatter','.png',figs_dir, width=12,height=20)
-    
-    save_plot(plts[['clustering-silhouettes']],'clustering-silhouettes','.pdf',figs_dir, width=15,height=12)
+    save_plot(plts[['clustering-silhouettes-scatter']],'clustering-silhouettes-scatter','.pdf',figs_dir, width=12,height=12)
+    save_plot(plts[['clustering-silhouettes-violins']],'clustering-silhouettes-violins','.pdf',figs_dir, width=12,height=12)
 }
 
 
