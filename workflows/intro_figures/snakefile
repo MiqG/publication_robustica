@@ -25,11 +25,11 @@ rule all:
         # figures sign problem
         os.path.join(RESULTS_DIR,'figures','sign_problem')
 
-rule the_ica_sign_problem:
+rule ica_heatmaps:
     output:
         directory(os.path.join(RESULTS_DIR,'figures','sign_problem'))
     shell:
         """
-        python scripts/the_ica_sign_problem.py \
+        python scripts/ica_examples.py \
                     --output_dir={output}
         """
