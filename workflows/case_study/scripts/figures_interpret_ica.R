@@ -27,6 +27,11 @@ require(ggrepel)
 require(reshape2)
 require(survival)
 require(survminer)
+require(grid)
+
+require(clusterProfiler)
+require(org.Hs.eg.db)
+require(enrichplot)
 
 ROOT = here::here()
 source(file.path(ROOT,'src','R','utils.R'))
@@ -90,20 +95,7 @@ make_heatmap = function(X, metadata, cluster_rows=TRUE, cluster_cols=TRUE){
 }
 
 
-plot_silhouettes = function(stats){
-    X = stats
-
-    plts=list()
-    
-    plts[['silhouettes-scatter']] = X %>% 
-        ggscatter(x='silhouette_euclidean', y='silhouette_pearson') + 
-        geom_text_repel(aes(label=cluster_id))
-    
-    return(plts)
-}
-
-
-plot_sample_properties = function(genexpr, S, A, sample_properties){
+analyze_components = function(A, sample_properties){
     
     # do any weights correlate with any sample property?
     X = A %>% column_to_rownames('index')
@@ -111,7 +103,6 @@ plot_sample_properties = function(genexpr, S, A, sample_properties){
     properties_oi = setdiff(colnames(properties),c('OS','OS.time','sample_type','ABSOLUTE'))
     samples = rownames(X)
 
-    # spearman correlations
     correls = sapply(properties_oi, function(property_oi){
         y = properties[samples,property_oi]
         correls = apply(X[samples,], 2, function(x){
@@ -120,7 +111,7 @@ plot_sample_properties = function(genexpr, S, A, sample_properties){
     }, simplify=FALSE)
     correls = do.call(rbind, correls)
     
-    # survival associationss
+    # Are there any survival associations?
     survs = apply(X[samples,], 2, function(x){
         dat = cbind(weight=x, properties[samples,c('OS','OS.time')])
         result = summary(coxph(Surv(OS.time, OS) ~ weight, dat))
@@ -129,102 +120,18 @@ plot_sample_properties = function(genexpr, S, A, sample_properties){
     })
     survs = data.frame(coxph = survs)
     
-    plts = list()
-    
-    plts[['sample_properties-coxph']] = pheatmap(survs, cluster_cols = FALSE, silent = TRUE)
-    plts[['sample_properties-correls']] = pheatmap(t(correls), silent = TRUE)
-    
-    # focus on interesting components
-    ## ESTIMATE
-    component_oi = '83'
-    ### scatter
-    plts[['components_oi-estimate-scatter']] = data.frame(
-        component = X[samples,component_oi], 
-        index = properties[samples,'ESTIMATE']) %>% 
-    ggscatter(x='component', y='index', alpha=0.5) + 
-    labs(x=sprintf('Weights Component %s',component_oi), y='ESTIMATE') + 
-    stat_cor(method='spearman', label.y = 0.6)
-    ### heatmap of important genes
-    genes_oi = S[,c('sample',component_oi)] %>% 
-        filter(abs(get(component_oi)) > (4*sd(get(component_oi)) + mean(get(component_oi)))) %>% 
-        pull(sample)
-    plts[['components_oi-estimate-heatmap_genexpr']] = pheatmap(
-        genexpr %>% filter(sample %in% genes_oi) %>% column_to_rownames('sample'), 
-        main = paste0(
-            sprintf('Gene expression from %s genes in component %s',length(genes_oi),component_oi)
-        ), show_colnames = FALSE, silent=TRUE)
-    
-    ## Mitotic Index
-    component_oi = '95'
-    ### scatter
-    plts[['components_oi-mitotic_index-scatter']] = data.frame(
-            component = X[samples,component_oi], 
-            index = properties[samples,'mitotic_index']
-        ) %>% 
-        ggscatter(x='component', y='index', alpha=0.5) + 
-        labs(x=sprintf('Weights Component %s',component_oi), y='Mitotic Index') + 
-        stat_cor(method='spearman')
-    ### heatmap of important genes
-    genes_oi = S[,c('sample',component_oi)] %>% 
-        filter(abs(get(component_oi)) > (4*sd(get(component_oi)) + mean(get(component_oi)))) %>% 
-        pull(sample)
-    plts[['components_oi-mitotic_index-heatmap_genexpr']] = pheatmap(
-        genexpr %>% filter(sample %in% genes_oi) %>% column_to_rownames('sample'), 
-        main = paste0(
-            sprintf('Gene expression from %s genes in component %s',length(genes_oi),component_oi)
-        ), show_colnames = FALSE, silent=TRUE)
-    
-    ## survival
-    component_oi = '70'
-    dat = cbind(component = X[samples,component_oi], properties[samples,c('OS.time','OS')])
-    ### component weights vs OS.time
-    plts[['components_oi-coxph-scatter']] =  dat %>% 
-        ggscatter(x='OS.time', y='component', alpha=0.5) + 
-        ggtitle(sprintf('Cox PH Z-score = %s', round(survs[component_oi,'coxph'],2))) +
-        labs(y=sprintf('Weights Component %s',component_oi), x='Time (Days)')
-    
-    ### Kaplan Meier plot
-    dat = dat %>% mutate(weight = ifelse(component < median(component), 'Low', 'High'))
-    fit = survfit(Surv(OS.time, OS) ~ weight, data = dat)
-    plts[['components_oi-coxph-kaplan_meier']] = fit %>% ggsurvplot(
-            xlab='Time (Days)', ylab="Overall Survival Probability",
-            legend.title = "Component Weight",
-            pval = TRUE,
-            conf.int = TRUE,
-            palette = 'Dark2'
-        ) + ggtitle(sprintf('KM from Weights Component %s',component_oi))
-    
-    ### heatmap of important genes
-   genes_oi = S[,c('sample',component_oi)] %>% 
-        filter(abs(get(component_oi)) > (4*sd(get(component_oi)) + mean(get(component_oi)))) %>% 
-        pull(sample)
-   plts[['components_oi-coxph-heatmap_genexpr']] = pheatmap(
-        genexpr %>% filter(sample %in% genes_oi) %>% column_to_rownames('sample'), 
-        main = paste0(
-            sprintf('Gene expression from %s genes in component %s',length(genes_oi),component_oi)
-        ), show_colnames = FALSE, silent=TRUE)
-    
-    
-    return(plts)
-}
-
-
-plot_mut_components = function(genexpr, S, A, metadata){
-    
-    X = A %>% column_to_rownames('index') %>% t()
-    
     # which components have different weights in samples with and without mutation?
     samples = metadata[['sampleID']]
     is_mut = metadata[['is_mut']]=='TRUE'
     
-    result = apply(X[,samples], 1, function(x){
+    result = apply(X[samples,], 2, function(x){
         a = x[is_mut]
         b = x[!is_mut]
 
         result = data.frame(
-            a_median = median(a), 
-            b_median = median(b),
-            med_diff = median(a)-median(b),
+            a_median = median(a, na.rm=TRUE), 
+            b_median = median(b, na.rm=TRUE),
+            med_diff = median(a, na.rm=TRUE) - median(b, na.rm=TRUE),
             pvalue = wilcox.test(a, b)$p.value
         )    
         
@@ -233,65 +140,120 @@ plot_mut_components = function(genexpr, S, A, metadata){
     result = do.call(rbind,result) %>% 
         rownames_to_column('component') %>%
         mutate(fdr = p.adjust(pvalue, method='fdr'),
-               log10_fdr = -log10(fdr)) %>%
-        left_join(comp_sil, by='component')
-       
-    plts = list()
+               log10_fdr = -log10(fdr))
+    
+    
+    results = list(
+        sample_indices = correls,
+        survival = survs,
+        mutation = result
+    )
+    
+    return(results)
+}
 
-    # mut vs wt counts
-    plts[['mutation-counts_mutated']] = metadata %>%
-        count(is_mut) %>%
-        ggbarplot(x='is_mut', y='n', label=TRUE, fill='is_mut', color=NA)
+
+plot_silhouettes = function(stats){
+    X = stats
+
+    plts=list()
     
-    
-    # overview sample weights and mutation status
-    plts[['mutation-A-overview_heatmap']] = make_heatmap(X, metadata)
-    
-    
-    plts[['mutation-A-volcano']] = result %>%
-        ggscatter(x='med_diff', y='log10_fdr', color='silhouette_euclidean') +
-        geom_hline(yintercept = -log10(0.01), linetype='dashed') +
-        gradient_color(c("grey", "red")) +
-        #geom_vline(xintercept = c(-5,5), linetype='dashed') + 
-        geom_text_repel(
-            aes(label=component), 
-            result %>% filter(fdr<0.05 & abs(med_diff)>10)
-        ) +
-        labs(x=TeX('$\\Delta W_{mut-wt}$'), 
-             y=TeX('$-log_{10}(FDR)$'),
-             color='Mean Silhouette')
-    
-    component_oi = '62'
-    
-    # overview components of interest
-    plts[['mutation-A-sel_component-heatmap']] = make_heatmap(X[component_oi,,drop=FALSE], metadata, cluster_cols=FALSE)
-    
-    # violins of components oi
-    plts[['mutation-A-sel_component-violin']] = X %>% 
-        melt(varnames = c('component','sampleID'), value.name='weight') %>% 
-        left_join(metadata, by='sampleID') %>% 
-        filter(component==component_oi) %>% 
-        mutate(is_mut = ifelse(is_mut, 'Mut.', 'WT')) %>%
-        ggviolin(x='component', y='weight', fill='is_mut', 
-                 palette='lancet', color=NA) + 
-        geom_boxplot(aes(group=is_mut), width=0.1, position = position_dodge(0.8)) +
-        labs(x='Component', y='Weight', fill=TeX('\\textit{IDH1}'))
-    
-    ### heatmap of important genes
-    genes_oi = S[,c('sample',component_oi)] %>% 
-        filter(abs(get(component_oi)) > (4*sd(get(component_oi)) + mean(get(component_oi)))) %>% 
-        pull(sample)
-    plts[['mutation-sel_component-heatmap_genexpr']] = make_heatmap(genexpr %>% filter(sample %in% genes_oi) %>% column_to_rownames('sample'), metadata)
+    plts[['silhouettes-scatter']] = X %>% 
+        ggplot(aes(x=silhouette_euclidean, y=silhouette_pearson)) +
+        geom_text(aes(label=cluster_id)) + 
+        theme_pubr() + 
+        geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+        labs(x='Euclidean', y='1 - abs(Pearson Corr.)')
     
     return(plts)
 }
 
 
+run_enrichment = function(genes_oi){
+    result = enrichGO(genes_oi, OrgDb = org.Hs.eg.db, keyType='SYMBOL', ont='BP')
+    return(result)
+}
+
+
+plot_component_oi = function(genexpr, S, A, metadata, sample_properties, component_oi){    
+    # weights, mitotic index, survival, mutation status
+    X = A[,c('index',component_oi)] 
+    colnames(X) = c('sampleID', 'component')
+    X = X %>%
+        left_join(metadata[,c('sampleID','OS','OS.time','is_mut')], 
+                  by='sampleID') %>%
+        left_join(sample_properties[,c('sampleID','mitotic_index')],
+                  by='sampleID') %>%
+        mutate(OS = OS == 1,
+               is_mut = ifelse(is_mut, 'Mutated', 'WT'),
+               weight = ifelse(component < median(component), 'Low', 'High')) %>%
+        drop_na(OS)
+        
+    
+    plts = list()
+    plts[['weights_vs_mitotic_index']] = X %>%
+        ggscatter(x='mitotic_index', y='component', alpha=0.5) + 
+        labs(x='Mitotic Index', y=sprintf('Weights Component %s',component_oi)) + 
+        stat_cor(method='spearman')
+    
+    plts[['weights_vs_surv_time']] = X %>%
+        ggscatter(x='OS.time', y='component', palette='Dark2',
+                  color='OS', shape='OS', alpha=0.5) + 
+        labs(x='Time (Days)', y=sprintf('Weights Component %s',component_oi), 
+             color='Censored', shape='Censored')
+    
+    fit = survfit(Surv(OS.time, OS) ~ weight, data = X)
+    plts[['weights_vs_surv_km']] = fit %>% 
+        ggsurvplot(
+            xlab='Time (Days)', ylab="Overall Survival Probability",
+            legend.title = "Component Weight",
+            pval = TRUE,
+            conf.int = TRUE,
+            palette = 'Dark2'
+        ) + ggtitle(sprintf('KM from Weights Component %s',component_oi))
+    
+    plts[['weights_vs_mutation']] = X %>%
+        ggviolin(x='is_mut', y='component', 
+                 fill='is_mut', color=NA, palette='lancet') +
+        geom_boxplot(width=0.1) +
+        stat_compare_means(method='wilcox.test') +
+        guides(fill=FALSE) +
+        labs(x=TeX('\\textit{IDH1}'), y=sprintf('Weights Component %s',component_oi))
+    
+    # genes info
+    df = S[,c('sample',component_oi)]
+    colnames(df) = c('gene', 'weights')
+    df[['component']] = component_oi
+    plts[['weights_genes']] = df %>% 
+        ggviolin(x='component', y='weights', fill='orange', color=NA) +
+        geom_boxplot(width=0.1, outlier.size = 0.1) +
+        labs(x='Component', y= sprintf('Weights Component %s',component_oi)) +
+        geom_text_repel(
+            aes(label=gene), 
+            df %>% slice_max(order_by = abs(weights), n = 20)
+        )
+    
+    genes_oi = df %>% filter(abs(weights) > 4*sd(weights)) %>% pull(gene)
+    plts[['weights_vs_genexpr']] = make_heatmap(
+        genexpr %>% filter(sample%in%genes_oi) %>% column_to_rownames('sample'), 
+        metadata
+    )
+    
+    enrichment = run_enrichment(genes_oi)
+    plts[['weights_vs_enrichment_dotplot']] = dotplot(enrichment) +
+        ggtitle(sprintf('n=%s',length(genes_oi)))
+    
+    plts[['weights_vs_enrichment_cnetplot']] = cnetplot(enrichment) +
+        ggtitle(sprintf('n=%s',length(genes_oi)))
+    
+    return(plts)  
+}
+
+
 make_plots = function(genexpr, S, A, sample_properties, metadata){
     plts = list(
-        plot_sample_properties(genexpr, S, A, sample_properties),
-        plot_silhouettes(stats),
-        plot_mut_components(genexpr, S, A, metadata)
+        plot_component_oi(genexpr, S, A, metadata, sample_properties, component_oi),
+        plot_silhouettes(stats)
     )
     plts = do.call(c,plts)
     return(plts)
@@ -309,29 +271,18 @@ save_plot = function(plt, plt_name, extension='.pdf',
 
 
 save_plots = function(plts, figs_dir){
-    save_plot(plts[['sample_properties-coxph']], 'sample_properties-coxph', '.pdf', figs_dir, width=5, height=25)
-    save_plot(plts[['sample_properties-correls']], 'sample_properties-correls', '.pdf', figs_dir, width=15, height=25)
+    save_plot(plts[['weights_vs_mitotic_index']], 'weights_vs_mitotic_index', '.png', figs_dir, width=12, height=12)
     
-    save_plot(plts[['components_oi-estimate-scatter']], 'components_oi-estimate-scatter', '.png', figs_dir, width=12, height=12)
-    save_plot(plts[['components_oi-mitotic_index-scatter']], 'components_oi-mitotic_index-scatter', '.png', figs_dir, width=12, height=12)
-    save_plot(plts[['components_oi-coxph-scatter']], 'components_oi-coxph-scatter', '.png', figs_dir, width=12, height=12)
-    ggsave(file.path(figs_dir,'components_oi-coxph-kaplan_meier.pdf'), print(plts[['components_oi-coxph-kaplan_meier']]), units='cm', width=12, height=12)
+    save_plot(plts[['weights_vs_surv_time']], 'weights_vs_surv_time', '.png', figs_dir, width=12, height=12)
+    save_plot(print(plts[['weights_vs_surv_km']]), 'weights_vs_surv_km', '.pdf', figs_dir, width=12, height=12)
     
-    save_plot(plts[['components_oi-estimate-heatmap_genexpr']], 'components_oi-estimate-heatmap_genexpr', '.pdf', figs_dir, width=12, height=12)
-    save_plot(plts[['components_oi-mitotic_index-heatmap_genexpr']], 'components_oi-mitotic_index-heatmap_genexpr', '.pdf', figs_dir, width=12, height=12)
-    save_plot(plts[['components_oi-coxph-heatmap_genexpr']], 'components_oi-coxph-heatmap_genexpr', '.pdf', figs_dir, width=12, height=12)
+    save_plot(plts[['weights_vs_mutation']], 'weights_vs_mutation', '.pdf', figs_dir, width=12, height=12)
     
+    save_plot(plts[['weights_genes']], 'weights_genes', '.pdf', figs_dir, width=12, height=12)
+    save_plot(plts[['weights_vs_genexpr']], 'weights_vs_genexpr', '.pdf', figs_dir, width=24, height=12)
     
-    save_plot(plts[['silhouettes-scatter']], 'silhouettes-scatter', '.pdf', figs_dir, width=12, height=12)
-    save_plot(plts[['silhouettes-scatter-unfiltered']], 'silhouettes-scatter-unfiltered', '.pdf', figs_dir, width=12, height=12)
-    
-   save_plot(plts[['mutation-counts_mutated']], 'mutation-counts_mutated', '.pdf', figs_dir, width=12, height=12) 
-    save_plot(plts[['mutation-A-volcano']], 'mutation-A-volcano', '.pdf', figs_dir, width=12, height=12)
-    save_plot(plts[['mutation-A-sel_component-violin']], 'mutation-A-sel_component-violin', '.pdf', figs_dir, width=12, height=12)
-    
-    save_plot(plts[['mutation-A-overview_heatmap']], 'mutation-A-overview_heatmap', '.pdf', figs_dir,width=15, height=17)
-    save_plot(plts[['mutation-A-sel_component-heatmap']], 'mutation-A-sel_component-heatmap', '.pdf', figs_dir, width=15, height=17)
-    save_plot(plts[['mutation-A-sel_component-heatmap_genexpr']], 'mutation-A-sel_component-heatmap_genexpr', '.pdf', figs_dir, width=15, height=17)
+    save_plot(plts[['weights_vs_enrichment_dotplot']], 'weights_vs_enrichment_dotplot', '.pdf', figs_dir, width=20, height=20)
+    save_plot(plts[['weights_vs_enrichment_cnetplot']], 'weights_vs_enrichment_cnetplot', '.pdf', figs_dir, width=20, height=20)
     
 }
 
@@ -372,8 +323,14 @@ main = function(){
         pull(sampleID)
     metadata = metadata %>% mutate(is_mut = as.character(sampleID %in% mut_samples))
     
-    # make plots
-    plts = make_plots(genexpr, S, A, sample_properties, metadata)
+    # analysis - 95 stands out
+    results = analyze_components(A, sample_properties)
+    comps_correls = sort(abs(results[['sample_indices']]['mitotic_index',]))
+    comps_survs = results[['survival']] %>% arrange(abs(coxph))
+    comps_mitotic_index = results[['mutation']] %>% filter(fdr < 0.05) %>% arrange(abs(med_diff))
+    
+    # make plots for this component
+    plts = plot_component_oi(genexpr, S, A, metadata, sample_properties, '95')
     plts[['silhouettes-scatter-unfiltered']] = plt
     
     # save
