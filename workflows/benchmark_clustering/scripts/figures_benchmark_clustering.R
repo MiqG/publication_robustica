@@ -57,51 +57,52 @@ plot_performance_profile = function(df){
 }
 
 
-plot_silhouettes = function(df){
-    # get mean silhouette per cluster
-    X = df %>%
-        group_by(property_oi, cluster_id) %>%
-        summarise(
-            `1 - abs(Pearson)` = mean(silhouette_pearson),
-            `Euclidean` = mean(silhouette_euclidean)
-        ) %>%
-        melt(id.vars = c('property_oi','cluster_id'))
+plot_silhouettes = function(df, lab){
+    X = df %>% 
+        dplyr::select(cluster_id, property_oi, time, 
+                      max_memory, silhouette_pearson) %>%
+        melt(id.vars = c('cluster_id','property_oi','time','max_memory')) %>%
+        mutate(time=as.numeric(time))
     
     palette = get_palette('Paired',length(unique(X[['property_oi']])))
     
-    plt = X %>%
-        ggviolin(x='variable', y='value', fill='property_oi', 
-                 color=NA, palette=palette) + 
-        geom_boxplot(aes(fill=property_oi), width=.1, alpha=1, 
-                     position = position_dodge(0.8)) + 
-        labs(x='Metric', y='Silhouette')
+    plts = list()    
     
-    return(plt)
-}
-
-
-plot_silhouette_time = function(df){
-    X = df %>%
-        group_by(property_oi, time, cluster_id) %>%
-        summarise(
-            silhouette_pearson = mean(silhouette_pearson),
-            silhouette_euclidean = mean(silhouette_euclidean)
-        ) %>%
-        group_by(property_oi, time) %>%
-        summarise(
-            silhouette_euclidean = mean(silhouette_euclidean),
-            silhouette_pearson = mean(silhouette_pearson)
-        ) %>%
-        melt(id.vars = c('property_oi','time'))
-    
-    palette = get_palette('Paired',length(unique(X[['property_oi']])))
-    
-    plt = X %>%
-        ggscatter(x='time', y='value', color='property_oi', 
-                  facet.by='variable', palette=palette) + 
-        geom_text_repel(aes(label=property_oi)) + 
+    # silhouettes vs time
+    med = X %>% 
+        group_by(property_oi, time, max_memory) %>%
+        summarize(median_value=median(value))
+    plts[['silhouettes_vs_time']] = ggplot(
+        X, aes(x=time, y=value, fill=NULL, color=property_oi)
+        ) + 
+        geom_boxplot(outlier.alpha = 0, width=20) + 
+        geom_point(aes(x=time, y=median_value, label=property_oi), med, size=0.5) +
+        theme_pubr() + 
+        geom_text_repel(
+            aes(x=time, y=median_value, label=property_oi), med) + 
         guides(color=FALSE) +
-        labs(x = 'Time (s)', y = 'Silhouette')
+        labs(x='Time (s)', y='Silhouette Score')
+    
+    # silhouettes vs memory
+    med = X %>% 
+        group_by(property_oi, time, max_memory) %>%
+        summarize(median_value=median(value))
+    plts[['silhouettes_vs_max_memory']] = ggplot(
+        X, aes(x=max_memory, y=value, fill=NULL, color=property_oi)
+        ) + 
+        geom_boxplot(outlier.alpha = 0, width=20) + 
+        geom_point(aes(x=max_memory, y=median_value, label=property_oi), med, size=0.5) +
+        theme_pubr() + 
+        geom_text_repel(
+            aes(x=max_memory, y=median_value, label=property_oi), med) +
+        guides(color=FALSE) +
+        labs(x='Memory (MiB)', y='Silhouette Score')
+    
+    plts = sapply(plts, function(plt){ set_palette(plt, palette) }, simplify=FALSE)
+    
+    names(plts) = paste0(lab, names(plts))
+    
+    return(plts)
 }
 
 
@@ -111,22 +112,31 @@ make_plots = function(
 ){
     plts = list(
         'metrics-mem_time-scatter' = plot_performance_profile(metrics_performance),
-        'methods-mem_time-scatter' = plot_performance_profile(methods_performance),
-        'metrics-clustering_silhouettes' = plot_silhouettes(metrics_clustering) + labs(fill='Clustering Metric'),
-        'methods-clustering_silhouettes' = plot_silhouettes(methods_clustering) + labs(fill='Clustering Method'),
-        'methods-clustering_silhouettes_time' = plot_silhouette_time(methods_clustering)
+        'methods-mem_time-scatter' = plot_performance_profile(methods_performance)
     )
+    plts = list(
+        plts,
+        plot_silhouettes(methods_clustering,'methods-'),
+        plot_silhouettes(metrics_clustering,'metrics-')
+    )
+    plts = do.call(c,plts)
     return(plts)
 }
 
 
 save_plot = function(plt, plt_name, extension='.pdf', 
-                      directory='', dpi=350, 
-                      width = par("din")[1], height = par("din")[2], units='cm'){
+                     directory='', 
+                     dpi=350, 
+                     width = par("din")[1], 
+                     height = par("din")[2], 
+                     device = NULL,
+                     units='cm'){
         filename = file.path(directory,paste0(plt_name,extension))
         ggsave(filename, 
                plt, 
-               width=width, height=height, dpi=dpi, limitsize=FALSE, units=units)
+               width=width, height=height, dpi=dpi, 
+               limitsize=FALSE, useDingbats = FALSE,
+               units=units, device=device)
 }
 
 
@@ -135,10 +145,11 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['metrics-mem_time-scatter']],'metrics-mem_time-scatter','.png',figs_dir, width=12,height=20)
     save_plot(plts[['methods-mem_time-scatter']] + facet_wrap(~property_oi, ncol=2, scales='free'),'methods-mem_time-scatter','.png',figs_dir, width=20,height=20)
     
-    save_plot(plts[['metrics-clustering_silhouettes']],'metrics-clustering_silhouettes','.pdf',figs_dir, width=15,height=12)
-    save_plot(plts[['methods-clustering_silhouettes']]+guides(fill=guide_legend(ncol=3)),'methods-clustering_silhouettes','.pdf',figs_dir, width=20,height=12)
+    save_plot(plts[['methods-silhouettes_vs_time']], 'methods-silhouettes_vs_time','.pdf',figs_dir, width=12, height=12, device=cairo_pdf)
+    save_plot(plts[['methods-silhouettes_vs_max_memory']], 'methods-silhouettes_vs_max_memory','.pdf',figs_dir, width=12, height=12, device=cairo_pdf)
     
-    save_plot(plts[['methods-clustering_silhouettes_time']], 'methods-clustering_silhouettes_time','.pdf',figs_dir, width=16, height=9)
+    save_plot(plts[['metrics-silhouettes_vs_time']], 'metrics-silhouettes_vs_time','.pdf',figs_dir, width=12, height=12, device=cairo_pdf)
+    save_plot(plts[['metrics-silhouettes_vs_max_memory']], 'metrics-silhouettes_vs_max_memory','.pdf',figs_dir, width=12, height=12, device=cairo_pdf)
 }
 
 
@@ -154,6 +165,7 @@ main = function(){
     dir.create(figs_dir, recursive = TRUE)
     
     # load data
+    ## performances
     metrics_performance = read_tsv(metrics_performance_file) %>% 
         filter(`function` != 'evaluate_performance') %>%
         group_by(property_oi) %>% 
@@ -166,19 +178,30 @@ main = function(){
         mutate(rel_timestamp = get_relative_timestamp(timestamp),
                `function` = paste0(`function`,'()')
               )
-    
+    ## clustering time and evaluation
+    ### metrics
     clustering_time = metrics_performance %>% 
         filter(`function`=='cluster_components()') %>% 
         dplyr::select(time,property_oi) %>% 
         distinct()
+    max_memory = metrics_performance %>% 
+        group_by(property_oi) %>% 
+        summarize(max_memory=max(memory))
     metrics_clustering = read_tsv(metrics_clustering_file) %>%
-        left_join(clustering_time, by='property_oi')
+        left_join(clustering_time, by='property_oi') %>%
+        left_join(max_memory, by='property_oi')
+    
+    ### methods
     clustering_time = methods_performance %>% 
         filter(`function`=='cluster_components()') %>% 
         dplyr::select(time,property_oi) %>% 
         distinct()
+    max_memory = methods_performance %>% 
+        group_by(property_oi) %>% 
+        summarize(max_memory=max(memory))
     methods_clustering = read_tsv(methods_clustering_file) %>%
-        left_join(clustering_time, by='property_oi')
+        left_join(clustering_time, by='property_oi') %>%
+        left_join(max_memory, by='property_oi')
     
     plts = make_plots(metrics_performance, metrics_clustering, 
                       methods_performance, methods_clustering)
