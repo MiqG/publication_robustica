@@ -18,18 +18,13 @@ DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 
-CANCER_TYPES = ['BRCA','LGG']
+CANCER_TYPES = ['LGG']
 
 ITERATIONS = 100
 DATASETS = ['Sastry2019','LGG']
 N_COMPONENTS = {
     'Sastry2019': 100,
     'LGG': 100
-}
-
-FILES_ICA_ITERATIONS = {
-    'Sastry2019': os.path.join(PREP_DIR,'benchmark_data','Sastry2019','X.tsv.gz'),
-    'LGG': os.path.join(PREP_DIR,'genexpr','LGG.tsv.gz')
 }
 
 ##### RULES #####
@@ -47,11 +42,8 @@ rule all:
         # prepare mutations TCGA
         expand(os.path.join(PREP_DIR,'snv','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
         
-        # create benchmark dataset
-        expand(os.path.join(PREP_DIR,'benchmark_data','{dataset}'),dataset=['Sastry2019']),
-        
         # run ICA multiple times on datasets
-        expand(os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}'),dataset=DATASETS)
+        expand(os.path.join(PREP_DIR,'ica_runs','{dataset}'),dataset=DATASETS)
     
     
 rule prepare_metadata:
@@ -61,13 +53,15 @@ rule prepare_metadata:
     output:
         [os.path.join(PREP_DIR,'metadata','%s.tsv') % cancer for cancer in CANCER_TYPES]
     params:
-        output_dir = os.path.join(PREP_DIR,'metadata')
+        output_dir = os.path.join(PREP_DIR,'metadata'),
+        cancer_types_oi = ','.join(CANCER_TYPES)
     shell:
         """
         python scripts/prepare_metadata.py \
                     --raw_tcga_clinical={input.clinical} \
                     --raw_tcga_survival={input.survival} \
-                    --output_dir={params.output_dir}
+                    --output_dir={params.output_dir} \
+                    --cancer_types_oi={params.cancer_types_oi}
         """
         
         
@@ -126,40 +120,21 @@ rule compute_gene_mutation_frequency_tcga:
                     --output_file={output}
         """
         
-
-rule create_benchmark_data:
-    input:
-        os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz')
-    output:
-        os.path.join(PREP_DIR,'benchmark_data','{dataset}','X.tsv.gz'),
-        os.path.join(PREP_DIR,'benchmark_data','{dataset}','S.tsv.gz'),
-        os.path.join(PREP_DIR,'benchmark_data','{dataset}','A.tsv.gz'),
-        folder = directory(os.path.join(PREP_DIR,'benchmark_data','{dataset}'))
-    params:
-        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset]
-    shell:
-        """
-        python scripts/create_benchmark_data.py \
-                    --input_file={input} \
-                    --output_dir={output.folder} \
-                    --n_components={params.n_components}
-        """
         
-        
-rule compute_ica_iterations:
+rule compute_ica_runs:
     input:
-        lambda wildcards: FILES_ICA_ITERATIONS[wildcards.dataset]
+        lambda wildcards: os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz')
     output:
-        directory(os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}')),
-        S = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle'),
-        A = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle')
+        directory(os.path.join(PREP_DIR,'ica_runs','{dataset}')),
+        S = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
+        A = os.path.join(PREP_DIR,'ica_runs','{dataset}','A.pickle.gz')
     params:
         n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset],
         iterations = ITERATIONS
     threads: 15
     shell:
         """
-        python scripts/compute_ica_iterations.py \
+        python scripts/compute_ica_runs.py \
                     --input_file={input} \
                     --S_file={output.S} \
                     --A_file={output.A} \

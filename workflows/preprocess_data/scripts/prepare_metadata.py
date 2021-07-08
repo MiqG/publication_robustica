@@ -36,7 +36,7 @@ raw_tcga_survival = os.path.join(RAW_DIR,'UCSCXena','TCGA','phenotype','Survival
 """
 
 ##### FUNCTIONS #####
-def preprocess_tcga(raw_tcga_clinical, raw_tcga_survival):
+def preprocess_tcga(raw_tcga_clinical, raw_tcga_survival, cancer_types_oi):
     # load and preprocess
     clinical = pd.read_table(raw_tcga_clinical)
     survival = pd.read_table(raw_tcga_survival)
@@ -58,6 +58,11 @@ def preprocess_tcga(raw_tcga_clinical, raw_tcga_survival):
                           for primary_disease in df['primary_disease']]
     
     df['sample_type'] = df['sample_type'].str.replace('Primary Blood Derived Cancer - Peripheral Blood', 'PBDC-PB')
+    
+    # subset
+    if cancer_types_oi is not None:
+        df = df.loc[df['cancer_type'].isin(cancer_types_oi)].copy()
+        
     return df
 
 
@@ -66,6 +71,7 @@ def parse_args():
     parser.add_argument("--raw_tcga_clinical", type=str)
     parser.add_argument("--raw_tcga_survival", type=str)
     parser.add_argument("--output_dir", type=str)
+    parser.add_argument("--cancer_types_oi", type=str, default=None)
 
     args = parser.parse_args()
     
@@ -77,9 +83,10 @@ def main():
     raw_tcga_clinical = args.raw_tcga_clinical
     raw_tcga_survival = args.raw_tcga_survival
     output_dir = args.output_dir
+    cancer_types_oi = args.cancer_types_oi.split(',')
     
     # load
-    tcga = preprocess_tcga(raw_tcga_clinical,raw_tcga_survival)
+    tcga = preprocess_tcga(raw_tcga_clinical,raw_tcga_survival,cancer_types_oi)
 
     # save
     for cancer_type in tcga['cancer_type'].unique():
@@ -87,9 +94,10 @@ def main():
         filename = os.path.join(output_dir,'%s.tsv') % cancer_type
         df.to_csv(filename, sep="\t", index=False)
     
-    filename = os.path.join(output_dir,'%s.tsv') % 'PANCAN'
-    tcga.to_csv(filename, sep="\t", index=False)
-    
+    if cancer_types_oi is not None:
+        filename = os.path.join(output_dir,'%s.tsv') % 'PANCAN'
+        tcga.to_csv(filename, sep="\t", index=False)
+
 
 ##### SCRIPT #####
 if __name__ == "__main__":
