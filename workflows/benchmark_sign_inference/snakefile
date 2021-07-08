@@ -31,7 +31,7 @@ ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
 DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
-RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
+RESULTS_DIR = os.path.join(ROOT,'results','benchmark_sign_inference')
 
 ALGORITHMS = ['icasso','robustica_nosign','robustica','robustica_pca']
 ITERATIONS = 100
@@ -52,10 +52,8 @@ rule all:
         
 rule evaluate_performance:
     input:
-        S = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle'),
-        A = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle'),
-        S_true = os.path.join(PREP_DIR,'benchmark_data','{dataset}','S.tsv.gz'),
-        A_true = os.path.join(PREP_DIR,'benchmark_data','{dataset}','A.tsv.gz')
+        S = os.path.join(PREP_DIR,'ica_iterations','{dataset}','S.pickle.gz'),
+        A = os.path.join(PREP_DIR,'ica_iterations','{dataset}','A.pickle.gz'),
     output:
         os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz')
     params:
@@ -66,8 +64,6 @@ rule evaluate_performance:
         python scripts/evaluate_performance.py \
                     --S_all_file={input.S} \
                     --A_all_file={input.A} \
-                    --S_true_file={input.S_true} \
-                    --A_true_file={input.A_true} \
                     --output_file={output} \
                     --iterations={params.iterations} \
                     --algorithms={params.algorithms}
@@ -82,7 +78,7 @@ rule figures_benchmark_performance:
         directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
     shell:
         """
-        Rscript scripts/figures_benchmark_performance.R \
+        Rscript scripts/figures_benchmark_sign_inference.R \
                     --performance_evaluation_file={input.performance_evaluation} \
                     --clustering_info_file={input.clustering_info} \
                     --figs_dir={output}

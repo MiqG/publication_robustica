@@ -68,8 +68,6 @@ Development
 import os
 ROOT = '/home/miquel/projects/publication_robustica'
 RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
-S_true_file = os.path.join(RESULTS_DIR,'files','validation_data','Sastry2019','S.tsv.gz')
-A_true_file = os.path.join(RESULTS_DIR,'files','validation_data','Sastry2019','A.tsv.gz')
 S_all_file = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','Sastry2019','S.pickle')
 A_all_file = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','Sastry2019','A.pickle')
 iterations = 100
@@ -78,7 +76,7 @@ algorithms = 'icasso,robustica_nosign,robustica_pca'.split(',')
 
 
 ##### FUNCTIONS #####
-def load_data(S_all_file, A_all_file, S_true_file, A_true_file):
+def load_data(S_all_file, A_all_file):
     """
     We consider the first iteration as our ground truth.
     """
@@ -86,11 +84,7 @@ def load_data(S_all_file, A_all_file, S_true_file, A_true_file):
     S_all = pd.read_pickle(S_all_file).values
     A_all = pd.read_pickle(A_all_file).values
 
-    # Ground truth
-    S_true = pd.read_table(S_true_file, index_col=0).values
-    A_true = pd.read_table(A_true_file, index_col=0).values
-
-    return S_true, A_true, S_all, A_all
+    return S_all, A_all
 
 
 class icasso:
@@ -107,6 +101,7 @@ class icasso:
         self.labels_ = self.clustering.labels_
 
 ALGORITHMS["icasso"]["robust_method"] = icasso
+
 
 def compute_robust_components(rica):
     mem = {}
@@ -178,31 +173,6 @@ def compute_robust_components(rica):
     return S, A, mem, t, clustering_info
 
 
-def compute_r2(Y_true, Y_pred):
-    assert Y_true.shape == Y_pred.shape
-
-    r2 = np.full((Y_true.shape[1], Y_pred.shape[1]), np.nan)
-    for i in range(Y_true.shape[1]):
-        for j in range(Y_pred.shape[1]):
-            r2[i, j] = r2_score(Y_true[:, i], Y_pred[:, j])
-    return r2.max(axis=0)
-
-
-def score_prediction(Y_true, Y_pred):
-    r2 = compute_r2(Y_true, Y_pred)
-    p = np.abs(corrmats(Y_true.T, Y_pred.T)).max(axis=0)
-    d = pairwise_distances(Y_true.T, Y_pred.T, metric="euclidean").min(axis=0)
-    df = pd.DataFrame(
-        {
-            "max_r2": r2,
-            "max_pearson": p,
-            "min_dist": d,
-            "cluster_id": np.arange(Y_pred.shape[1]),
-        }
-    )
-    return df
-
-
 def prep_performance(mem, t):
     performance = pd.concat(
         [
@@ -250,8 +220,6 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--S_all_file", type=str)
     parser.add_argument("--A_all_file", type=str)
-    parser.add_argument("--S_true_file", type=str)
-    parser.add_argument("--A_true_file", type=str)
     parser.add_argument("--output_file", type=str)
     parser.add_argument("--iterations", type=int)
     parser.add_argument("--algorithms", type=str)
@@ -265,15 +233,13 @@ def main():
     args = parse_args()
     S_all_file = args.S_all_file
     A_all_file = args.A_all_file
-    S_true_file = args.S_true_file
-    A_true_file = args.A_true_file
     output_file = args.output_file
     iterations = args.iterations
     algorithms = args.algorithms.split(",")
 
     # load data
-    S_true, A_true, S_all, A_all = load_data(
-        S_all_file, A_all_file, S_true_file, A_true_file
+    S_all, A_all = load_data(
+        S_all_file, A_all_file
     )
 
     # evaluate performance
@@ -295,13 +261,6 @@ def main():
         # add algorithm
         performance["algorithm"] = algorithm
         clustering_info["algorithm"] = algorithm
-        
-        # add robust components validation scores
-        clustering_info = pd.merge(
-            clustering_info,
-            score_prediction(S_true, S_robust).assign(algorithm=algorithm),
-            on=["algorithm", "cluster_id"],
-        )
 
         # prepare outpus
         S_robusts[algorithm] = pd.DataFrame(S_robust)
