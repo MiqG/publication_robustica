@@ -60,13 +60,7 @@ N_COMPONENTS = {
 #### RULES ####
 rule all:
     input:
-        # evaluate clustering metrics
-        expand(os.path.join(RESULTS_DIR,'files','metrics','{dataset}',
-                            '{property_oi}','performance_evaluation.tsv.gz'),
-               property_oi=PROPERTIES_OI['metrics'],dataset=DATASETS),
-        expand(os.path.join(RESULTS_DIR,'files','metrics','{dataset}',
-                            'performance_evaluation_merged.tsv.gz'), dataset=DATASETS),
-        # evaluate clustering methods
+        # evaluate clustering algorithms
         expand(os.path.join(RESULTS_DIR,'files','methods','{dataset}',
                             '{property_oi}','performance_evaluation.tsv.gz'),
                property_oi=PROPERTIES_OI['methods'],dataset=DATASETS),
@@ -74,59 +68,12 @@ rule all:
                             'performance_evaluation_merged.tsv.gz'), dataset=DATASETS),
         # make figures 
         expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
-        
-rule evaluate_clustering_metrics:
-    input:
-        S = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle'),
-        A = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle')
-    output:
-        performance = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','{property_oi}','performance_evaluation.tsv.gz'),
-        clustering = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','{property_oi}','clustering_info.tsv.gz')
-    params:
-        property_type = 'metrics',
-        properties_oi = '{property_oi}',
-        iterations = ITERATIONS
-    shell:
-        """
-        python scripts/evaluate_clustering.py \
-                    --S_all_file={input.S} \
-                    --A_all_file={input.A} \
-                    --property_type={params.property_type} \
-                    --properties_oi={params.properties_oi} \
-                    --output_file={output.performance} \
-                    --iterations={params.iterations} \
-        """
-
-        
-rule merge_clustering_metrics:
-    input:
-        performance = [
-            os.path.join(RESULTS_DIR,'files','metrics',
-                         '{dataset}','{property_oi}','performance_evaluation.tsv.gz'
-                        ).format(property_oi=property_oi, dataset=dataset) 
-         for property_oi in PROPERTIES_OI['metrics'] 
-         for dataset in DATASETS],
-        clustering = [
-            os.path.join(RESULTS_DIR,'files','metrics',
-                         '{dataset}','{property_oi}','clustering_info.tsv.gz'
-                        ).format(property_oi=property_oi, dataset=dataset) 
-         for property_oi in PROPERTIES_OI['metrics'] 
-         for dataset in DATASETS]
-    output:
-        performance = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','performance_evaluation_merged.tsv.gz'),
-        clustering = os.path.join(RESULTS_DIR,'files','metrics','{dataset}','clustering_info_merged.tsv.gz')
-    run:
-        import pandas as pd
-        for key, filenames in input.items():
-            df = pd.concat([pd.read_table(filename) for filename in filenames])
-            df.to_csv(output[key], **SAVE_PARAMS)
-        print('Done!')
     
     
-rule evaluate_clustering_methods:
+rule evaluate_clustering_algorithms:
     input:
-        S = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle'),
-        A = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle')
+        S = os.path.join(PREP_DIR,'ica_iterations','{dataset}','S.pickle.gz'),
+        A = os.path.join(PREP_DIR,'ica_iterations','{dataset}','A.pickle.gz')
     output:
         performance = os.path.join(RESULTS_DIR,'files','methods','{dataset}','{property_oi}','performance_evaluation.tsv.gz'),
         clustering = os.path.join(RESULTS_DIR,'files','methods','{dataset}','{property_oi}','clustering_info.tsv.gz')
@@ -146,7 +93,7 @@ rule evaluate_clustering_methods:
         """
         
 
-rule merge_clustering_methods:
+rule merge_clustering_algorithms:
     input:
         performance = [
             os.path.join(RESULTS_DIR,'files','methods',
