@@ -53,13 +53,12 @@ Development
 -----------
 import os
 ROOT = '/home/miquel/projects/publication_robustica'
-RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
-PREP_DIR = os.path.join(ROOT,'prep')
-S_all_file = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','S.pickle')
-A_all_file = os.path.join(PREP_DIR,'ica_iterations','benchmark_data','{dataset}','A.pickle')
+PREP_DIR = os.path.join(ROOT,'data','prep')
+S_all_file = os.path.join(PREP_DIR,'ica_runs','Sastry2019','S.pickle.gz')
+A_all_file = os.path.join(PREP_DIR,'ica_runs','Sastry2019','A.pickle.gz')
 iterations = 100
-property_type = 'metrics'
-properties_oi = 'abs_pearson,euclidean'.split(',')
+property_type = 'methods'
+properties_oi = 'DBSCAN,KMedoids'.split(',')
 """
 
 
@@ -143,7 +142,7 @@ def compute_robust_components(rica):
         }
     )
 
-    return S, A, mem, t, clustering_info
+    return S, A, S_std, A_std, mem, t, clustering_info
 
 
 def prep_performance(mem, t):
@@ -164,7 +163,7 @@ def prep_performance(mem, t):
 
 def evaluate_performance(rica):
     start = time.time()
-    tmp_mem, (S_robust, A_robust, mem, t, clustering_info) = memory_usage(
+    tmp_mem, (S, A, S_std, A_std, mem, t, clustering_info) = memory_usage(
         (compute_robust_components, (rica,)), **MEM_KWS
     )
     tmp_t = time.time() - start
@@ -182,7 +181,7 @@ def evaluate_performance(rica):
         * clustering_info["orientation"].values
     ).T
     clustering_info = pd.merge(
-        clustering_info, compute_iq(X.T, labels), on="cluster_id"
+        clustering_info, compute_iq(X, labels), on="cluster_id"
     )
     clustering_info["silhouette_euclidean"] = silhouette_samples(X, labels)
     D = 1 - np.abs(np.corrcoef(rica.S_all.T))
@@ -190,7 +189,7 @@ def evaluate_performance(rica):
         D, labels, metric="precomputed"
     )
 
-    return S_robust, A_robust, performance, clustering_info
+    return S, A, S_std, A_std, performance, clustering_info
 
 
 def evaluate_clustering(property_type, property_oi, S_all, A_all, iterations):
@@ -212,7 +211,7 @@ def evaluate_clustering(property_type, property_oi, S_all, A_all, iterations):
     rica.S_all = S_all
     rica.A_all = A_all
 
-    S_robust, A_robust, performance, clustering_info = evaluate_performance(rica)
+    S, A, S_std, A_std, performance, clustering_info = evaluate_performance(rica)
 
     # add info current loop
     performance["property_type"] = property_type
@@ -249,7 +248,8 @@ def main():
     S_all, A_all = load_data(S_all_file, A_all_file)
 
     # evaluate performance
-    performances, clustering_infos = [], []
+    performances = []
+    clustering_infos = []
     for property_oi in properties_oi:
         p, c = evaluate_clustering(property_type, property_oi, S_all, A_all, iterations)
         performances.append(p)
