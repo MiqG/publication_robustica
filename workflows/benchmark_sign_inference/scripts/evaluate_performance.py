@@ -57,9 +57,12 @@ ALGORITHMS = {
         "robust_dimreduce": False,
         "robust_kws": {"n_clusters": 100},
     },
-    "robustica_nosign": {"robust_infer_signs": False, "robust_dimreduce": False},
-    "robustica": {"robust_infer_signs": True, "robust_dimreduce": False},
-    "robustica_pca": {"robust_infer_signs": True, "robust_dimreduce": True},
+    "robustica_nosign": {"robust_infer_signs": False, "robust_dimreduce": False,
+                         "robust_kws":{"affinity":"euclidean", "linkage":"average"}},
+    "robustica": {"robust_infer_signs": True, "robust_dimreduce": False,
+                  "robust_kws":{"affinity":"euclidean", "linkage":"average"}},
+    "robustica_pca": {"robust_infer_signs": True, "robust_dimreduce": True,
+                      "robust_kws":{"affinity":"euclidean", "linkage":"average"}},
 }
 
 """
@@ -67,11 +70,11 @@ Development
 -----------
 import os
 ROOT = '/home/miquel/projects/publication_robustica'
-RESULTS_DIR = os.path.join(ROOT,'results','benchmark_performance')
-S_all_file = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','Sastry2019','S.pickle')
-A_all_file = os.path.join(RESULTS_DIR,'files','ica_iterations','validation_data','Sastry2019','A.pickle')
+PREP_DIR = os.path.join(ROOT,'data','prep','ica_runs')
+S_all_file = os.path.join(PREP_DIR,'Sastry2019','S.pickle.gz')
+A_all_file = os.path.join(PREP_DIR,'Sastry2019','A.pickle.gz')
 iterations = 100
-algorithms = 'icasso,robustica_nosign,robustica_pca'.split(',')
+algorithms = 'icasso,robustica_pca'.split(',')
 """
 
 
@@ -170,7 +173,7 @@ def compute_robust_components(rica):
         }
     )
 
-    return S, A, mem, t, clustering_info
+    return S, A, S_std, A_std, mem, t, clustering_info
 
 
 def prep_performance(mem, t):
@@ -191,7 +194,7 @@ def prep_performance(mem, t):
 
 def evaluate_performance(rica):
     start = time.time()
-    tmp_mem, (S_robust, A_robust, mem, t, clustering_info) = memory_usage(
+    tmp_mem, (S, A, S_std, A_std, mem, t, clustering_info) = memory_usage(
         (compute_robust_components, (rica,)), **MEM_KWS
     )
     tmp_t = time.time() - start
@@ -206,14 +209,14 @@ def evaluate_performance(rica):
     X = (
         rica.S_all * clustering_info["sign"].values * clustering_info["orientation"].values
     ).T
-    clustering_info = pd.merge(clustering_info, compute_iq(X.T, labels), on="cluster_id")
+    clustering_info = pd.merge(clustering_info, compute_iq(X, labels), on="cluster_id")
     clustering_info["silhouette_euclidean"] = silhouette_samples(X, labels)
     D = 1 - np.abs(np.corrcoef(rica.S_all.T))
     clustering_info["silhouette_pearson"] = silhouette_samples(
         D, labels, metric="precomputed"
     )
 
-    return S_robust, A_robust, performance, clustering_info
+    return S, A, S_std, A_std, performance, clustering_info
 
 
 def parse_args():
@@ -238,15 +241,15 @@ def main():
     algorithms = args.algorithms.split(",")
 
     # load data
-    S_all, A_all = load_data(
-        S_all_file, A_all_file
-    )
+    S_all, A_all = load_data(S_all_file, A_all_file)
 
     # evaluate performance
     performances = []
     clustering_infos = []
     S_robusts = {}
+    S_stds = {}
     A_robusts = {}
+    A_stds = {}
     for algorithm in algorithms:
         print(algorithm)
 
@@ -257,14 +260,17 @@ def main():
         rica.S_all = S_all
         rica.A_all = A_all
 
-        S_robust, A_robust, performance, clustering_info = evaluate_performance(rica)
+        S, A, S_std, A_std, performance, clustering_info = evaluate_performance(rica)
+        
         # add algorithm
         performance["algorithm"] = algorithm
         clustering_info["algorithm"] = algorithm
 
         # prepare outpus
-        S_robusts[algorithm] = pd.DataFrame(S_robust)
-        A_robusts[algorithm] = pd.DataFrame(A_robust)
+        S_robusts[algorithm] = pd.DataFrame(S)
+        S_stds[algorithm] = pd.DataFrame(S_std)
+        A_robusts[algorithm] = pd.DataFrame(A)
+        A_stds[algorithm] = pd.DataFrame(A_std)
         performances.append(performance)
         clustering_infos.append(clustering_info)
 
@@ -281,8 +287,14 @@ def main():
         S_robusts[algorithm].reset_index().to_csv(
             os.path.join(output_dir, "%s-S.tsv.gz") % algorithm, **SAVE_PARAMS
         )
+        S_stds[algorithm].reset_index().to_csv(
+            os.path.join(output_dir, "%s-S_std.tsv.gz") % algorithm, **SAVE_PARAMS
+        )
         A_robusts[algorithm].reset_index().to_csv(
             os.path.join(output_dir, "%s-A.tsv.gz") % algorithm, **SAVE_PARAMS
+        )
+        A_stds[algorithm].reset_index().to_csv(
+            os.path.join(output_dir, "%s-A_std.tsv.gz") % algorithm, **SAVE_PARAMS
         )
 
 

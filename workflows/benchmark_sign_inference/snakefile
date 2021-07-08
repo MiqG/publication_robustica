@@ -5,21 +5,26 @@ Evaluate the performance impact of changing the algorithm.
 
 Outline
 -------
-1. Compute ICA 100 times with a sample dataset with default parameters using:
-        1) iterate ICAs (common for all)
+1. Cluster 100 ICA runs and cluster:
     - the default algorithm (Icasso): 
-        2) Distance Matrix
-        3) Agglomerative clustering
-        4) Compute centroids (correcting sign!)
+        1) Distance Matrix
+        2) Agglomerative clustering
+        3) Compute centroids
+        
+    - robustica without sign correction
+        1) Agglomerative clustering
+        2) Compute centroids
+    
     - robustica
-        2) Correct signs
+        1) Correct signs
+        2) Agglomerative clustering
+        3) Compute centroids
+    
+    - robustica + PCA
+        1) Correct signs
+        2) compress feature space: PCA
         3) Agglomerative clustering
         4) Compute centroids
-    - robustica + PCA
-        2) Correct signs
-        3) compress feature space: PCA
-        4) Agglomerative clustering
-        5) Compute centroids
         
 2. make figures
 """
@@ -47,13 +52,13 @@ rule all:
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),dataset=DATASETS),
         
         # make figures
-        expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
+        # expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
         
         
 rule evaluate_performance:
     input:
-        S = os.path.join(PREP_DIR,'ica_iterations','{dataset}','S.pickle.gz'),
-        A = os.path.join(PREP_DIR,'ica_iterations','{dataset}','A.pickle.gz'),
+        S = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
+        A = os.path.join(PREP_DIR,'ica_runs','{dataset}','A.pickle.gz'),
     output:
         os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz')
     params:
