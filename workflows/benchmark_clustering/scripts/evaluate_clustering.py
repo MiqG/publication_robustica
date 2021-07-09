@@ -67,8 +67,8 @@ def load_data(
     S_all_file, A_all_file,
 ):
     # ICA runs
-    S_all = pd.read_pickle(S_all_file).values
-    A_all = pd.read_pickle(A_all_file).values
+    S_all = pd.read_pickle(S_all_file)
+    A_all = pd.read_pickle(A_all_file)
 
     return S_all, A_all
 
@@ -208,8 +208,8 @@ def evaluate_clustering(property_type, property_oi, S_all, A_all, iterations):
     print(rica_kws)
 
     rica = RobustICA(**rica_kws)
-    rica.S_all = S_all
-    rica.A_all = A_all
+    rica.S_all = S_all.values
+    rica.A_all = A_all.values
 
     S, A, S_std, A_std, performance, clustering_info = evaluate_performance(rica)
 
