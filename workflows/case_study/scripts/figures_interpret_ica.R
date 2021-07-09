@@ -28,6 +28,8 @@ require(reshape2)
 require(survival)
 require(survminer)
 require(grid)
+require(fdrtool)
+require(writexl)
 
 require(clusterProfiler)
 require(org.Hs.eg.db)
@@ -40,19 +42,24 @@ source(file.path(ROOT,'src','R','utils.R'))
 GENE_OI = 'IDH1'
 EFFECT_OI = c('Missense_Mutation','Nonsense_Mutation')
 
+MSIGDB_HALLMARKS = file.path(ROOT,'data','raw','MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs','h.all.v7.4.symbols.gmt')
+MSIGDB_IMMUNE = file.path(ROOT,'data','raw','MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs','c7.immunesigdb.v7.4.symbols.gmt')
+
+THRESH_FDR = 0.01
+
 # Development
 # -----------
-PREP_DIR = file.path(ROOT,'data','prep')
-RESULTS_DIR = file.path(ROOT,'results','case_study')
+# PREP_DIR = file.path(ROOT,'data','prep')
+# RESULTS_DIR = file.path(ROOT,'results','case_study')
 
-S_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','S.tsv.gz')
-A_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','A.tsv.gz')
-stats_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','stats.tsv.gz')
+# S_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','S.tsv.gz')
+# A_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','A.tsv.gz')
+# stats_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','stats.tsv.gz')
 
-genexpr_file = file.path(PREP_DIR,'genexpr','LGG.tsv.gz')
-snv_file = file.path(PREP_DIR,'snv','LGG.tsv.gz')
-metadata_file = file.path(PREP_DIR,'metadata','LGG.tsv')
-figs_dir = file.path(RESULTS_DIR,'figures','LGG')
+# genexpr_file = file.path(PREP_DIR,'genexpr','LGG.tsv.gz')
+# snv_file = file.path(PREP_DIR,'snv','LGG.tsv.gz')
+# metadata_file = file.path(PREP_DIR,'metadata','LGG.tsv')
+# figs_dir = file.path(RESULTS_DIR,'figures','LGG')
 
 sample_properties_file = '~/projects/sso_targets/results/exon_associations_ignoring_confounders/LGG/files/sample_properties.tsv'
 
@@ -95,7 +102,7 @@ make_heatmap = function(X, metadata, cluster_rows=TRUE, cluster_cols=TRUE){
 }
 
 
-analyze_components = function(A, sample_properties){
+analyze_components = function(A, sample_properties, metadata){
     
     # do any weights correlate with any sample property?
     X = A %>% column_to_rownames('index')
@@ -169,13 +176,18 @@ plot_silhouettes = function(stats){
 }
 
 
-run_enrichment = function(genes_oi){
-    result = enrichGO(genes_oi, OrgDb = org.Hs.eg.db, keyType='SYMBOL', ont='BP')
+run_enrichments = function(genes_oi, universe, msigdb){
+    print('Running enrichments...')
+    result = list(
+        'GO_BP' = enrichGO(genes_oi, OrgDb = org.Hs.eg.db, keyType='SYMBOL', ont='BP', universe = universe),
+        'MSigDB_Hallmarks' = enricher(genes_oi, TERM2GENE=msigdb[['h']], universe = universe)
+    )
     return(result)
 }
 
 
-plot_component_oi = function(genexpr, S, A, metadata, sample_properties, component_oi){    
+plot_component_oi = function(genexpr, S, A, metadata, sample_properties, 
+                                component_oi, enrichments){    
     # weights, mitotic index, survival, mutation status
     X = A[,c('index',component_oi)] 
     colnames(X) = c('sampleID', 'component')
@@ -203,8 +215,8 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_properties, compone
              color='Censored', shape='Censored')
     
     fit = survfit(Surv(OS.time, OS) ~ weight, data = X)
-    plts[['weights_vs_surv_km']] = fit %>% 
-        ggsurvplot(
+    plts[['weights_vs_surv_km']] = ggsurvplot(
+            fit = fit, data = X,
             xlab='Time (Days)', ylab="Overall Survival Probability",
             legend.title = "Component Weight",
             pval = TRUE,
@@ -224,39 +236,63 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_properties, compone
     df = S[,c('sample',component_oi)]
     colnames(df) = c('gene', 'weights')
     df[['component']] = component_oi
+    df$fdr = fdrtool(df$weights, plot = FALSE, verbose=FALSE)[['qval']]
+    genes_oi = df %>% filter(fdr < THRESH_FDR) %>% pull(gene)
+    cutoffs = df %>% 
+        filter(fdr < THRESH_FDR) %>% 
+        mutate(is_pos = sign(weights)) %>% 
+        group_by(is_pos) %>% 
+        slice_min(order_by = weights, n=1) %>% 
+        pull(weights)
     plts[['weights_genes']] = df %>% 
         ggviolin(x='component', y='weights', fill='orange', color=NA) +
         geom_boxplot(width=0.1, outlier.size = 0.1) +
         labs(x='Component', y= sprintf('Weights Component %s',component_oi)) +
-        geom_text_repel(
-            aes(label=gene), 
-            df %>% slice_max(order_by = abs(weights), n = 20)
-        )
-    
-    genes_oi = df %>% filter(abs(weights) > 4*sd(weights)) %>% pull(gene)
+        geom_hline(yintercept = cutoffs, linetype='dashed')
+
     plts[['weights_vs_genexpr']] = make_heatmap(
         genexpr %>% filter(sample%in%genes_oi) %>% column_to_rownames('sample'), 
         metadata
     )
     
-    enrichment = run_enrichment(genes_oi)
-    plts[['weights_vs_enrichment_dotplot']] = dotplot(enrichment) +
-        ggtitle(sprintf('n=%s',length(genes_oi)))
+    plts[['weights_vs_enrichment_dotplot-GO_BP']] = dotplot(enrichments[['GO_BP']]) +
+        ggtitle(sprintf('GO Biological Processes | n=%s',length(genes_oi)))
+    plts[['weights_vs_enrichment_cnetplot-GO_BP']] = cnetplot(enrichments[['GO_BP']]) +
+        ggtitle(sprintf('GO Biological Processes | n=%s',length(genes_oi)))
     
-    plts[['weights_vs_enrichment_cnetplot']] = cnetplot(enrichment) +
-        ggtitle(sprintf('n=%s',length(genes_oi)))
+    plts[['weights_vs_enrichment_dotplot-MSigDB_Hallmarks']] = dotplot(enrichments[['MSigDB_Hallmarks']]) +
+        ggtitle(sprintf('MSigDB Hallmarks | n=%s',length(genes_oi)))
+    plts[['weights_vs_enrichment_cnetplot-MSigDB_Hallmarks']] = cnetplot(enrichments[['MSigDB_Hallmarks']]) +
+        ggtitle(sprintf('MSigDB Hallmarks | n=%s',length(genes_oi)))
     
-    return(plts)  
+        
+    return(plts) 
+    
+    # component 95 correlates well with E2F transcription factors
+    # genexpr %>% filter(grepl('^E2F', sample)) %>% column_to_rownames('sample') %>% t() %>% as.data.frame() %>% rownames_to_column('index') %>% left_join(A %>% dplyr::select(one_of(c('index','95'))), by='index') %>% column_to_rownames('index') %>% cor(method='spearman') %>% pheatmap()
+    
+    # upstream regulator of E2F differentially expressed in IDH mut
+    # genexpr %>% filter(grepl('CDKN1A',sample)) %>% column_to_rownames('sample') %>% t() %>% as.data.frame() %>% rownames_to_column('sampleID') %>% left_join(metadata[,c('sampleID','is_mut')], by='sampleID') %>% ggviolin(x='is_mut', y='CDKN1A') + stat_compare_means(method = 'wilcox.test')
+    
+    # clustering the genes by their gene expression
+    # guilt-by-association
+    # plt = genexpr %>% filter(sample %in% genes_oi) %>% column_to_rownames('sample') %>% t() %>% cor(method='spearman') %>% pheatmap(cutree_cols = 4, cutree_rows = 4)
+ 
 }
 
 
-make_plots = function(genexpr, S, A, sample_properties, metadata){
-    plts = list(
-        plot_component_oi(genexpr, S, A, metadata, sample_properties, component_oi),
-        plot_silhouettes(stats)
+make_figdata = function(S, A, metadata, sample_properties, enrichments){
+    figdata = list(
+        'case_study-analysis' = list(
+            'source_matrix_S' = S,
+            'mixing_matrix_A' = A,
+            'sample_metadata' = metadata,
+            'sample_properties' = sample_properties,
+            'enrichment-GO_BP' = as.data.frame(enrichments[['GO_BP']]),
+            'enrichment-MSigDB_Hallmarks' = as.data.frame(enrichments[['MSigDB_Hallmarks']])
+        )
     )
-    plts = do.call(c,plts)
-    return(plts)
+    return(figdata)
 }
 
 
@@ -279,11 +315,24 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['weights_vs_mutation']], 'weights_vs_mutation', '.pdf', figs_dir, width=12, height=12)
     
     save_plot(plts[['weights_genes']], 'weights_genes', '.pdf', figs_dir, width=12, height=12)
-    save_plot(plts[['weights_vs_genexpr']], 'weights_vs_genexpr', '.pdf', figs_dir, width=24, height=12)
+    save_plot(plts[['weights_vs_genexpr']], 'weights_vs_genexpr', '.pdf', figs_dir, width=70, height=15)
     
-    save_plot(plts[['weights_vs_enrichment_dotplot']], 'weights_vs_enrichment_dotplot', '.pdf', figs_dir, width=20, height=20)
-    save_plot(plts[['weights_vs_enrichment_cnetplot']], 'weights_vs_enrichment_cnetplot', '.pdf', figs_dir, width=20, height=20)
+    save_plot(plts[['weights_vs_enrichment_dotplot-GO_BP']], 'weights_vs_enrichment_dotplot-GO_BP', '.pdf', figs_dir, width=20, height=20)
+    save_plot(plts[['weights_vs_enrichment_cnetplot-GO_BP']], 'weights_vs_enrichment_cnetplot-GO_BP', '.pdf', figs_dir, width=20, height=20)
     
+    save_plot(plts[['weights_vs_enrichment_dotplot-MSigDB_Hallmarks']], 'weights_vs_enrichment_dotplot-MSigDB_Hallmarks', '.pdf', figs_dir, width=20, height=20)
+    save_plot(plts[['weights_vs_enrichment_cnetplot-MSigDB_Hallmarks']], 'weights_vs_enrichment_cnetplot-MSigDB_Hallmarks', '.pdf', figs_dir, width=20, height=20)
+    
+    save_plot(plts[['silhouettes-scatter-unfiltered']], 'silhouettes-scatter-unfiltered', '.pdf', figs_dir, width=12, height=12)
+}
+
+
+save_figdata = function(figdata, dir){
+    lapply(names(figdata), function(x){
+        filename = file.path(dir,'figdata',paste0(x,'.xlsx'))
+        dir.create(dirname(filename), recursive=TRUE)
+        write_xlsx(figdata[[x]], filename)
+    })
 }
 
 
@@ -295,11 +344,18 @@ main = function(){
     genexpr_file = args$genexpr_file
     snv_file = args$snv_file
     metadata_file = args$metadata_file
+    stats_file = args$stats_file
+    sample_properties_file = args$sample_properties_file
     figs_dir = args$figs_dir
     
     dir.create(figs_dir, recursive = TRUE)
     
     # load data
+    msigdb = list(
+        h = read.gmt(MSIGDB_HALLMARKS),
+        c7 = read.gmt(MSIGDB_IMMUNE)
+    )    
+    
     S = read_tsv(S_file)
     A = read_tsv(A_file)
     stats = read_tsv(stats_file)
@@ -312,7 +368,7 @@ main = function(){
     plt = plot_silhouettes(stats)[[1]]
     
     # drop unwanted components: -1, silhouette
-    clean_components = stats %>% filter(silhouette_euclidean>0.8) %>% pull(cluster_id)
+    clean_components = stats %>% filter(silhouette_pearson>0.9) %>% pull(cluster_id)
     S = S[,c(1,1+clean_components)]
     A = A[,c(1,1+clean_components)]
     stats = stats %>% filter(cluster_id %in% clean_components)
@@ -324,17 +380,30 @@ main = function(){
     metadata = metadata %>% mutate(is_mut = as.character(sampleID %in% mut_samples))
     
     # analysis - 95 stands out
-    results = analyze_components(A, sample_properties)
+    results = analyze_components(A, sample_properties, metadata)
     comps_correls = sort(abs(results[['sample_indices']]['mitotic_index',]))
     comps_survs = results[['survival']] %>% arrange(abs(coxph))
     comps_mitotic_index = results[['mutation']] %>% filter(fdr < 0.05) %>% arrange(abs(med_diff))
     
+    # enrichment for component of interest
+    component_oi = '95'
+    df = S[,c('sample',component_oi)]
+    colnames(df) = c('gene', 'weights')
+    df[['component']] = component_oi
+    df$fdr = fdrtool(df$weights, plot = FALSE, verbose=FALSE)[['qval']]
+    genes_oi = df %>% filter(fdr < THRESH_FDR) %>% pull(gene)
+    enrichments = run_enrichments(genes_oi, df %>% pull(gene), msigdb)
+    
     # make plots for this component
-    plts = plot_component_oi(genexpr, S, A, metadata, sample_properties, '95')
+    plts = plot_component_oi(genexpr, S, A, metadata, sample_properties, '95', enrichments)
     plts[['silhouettes-scatter-unfiltered']] = plt
+    
+    # make figdata
+    figdata = make_figdata(S, A, metadata, sample_properties, enrichments)
     
     # save
     save_plots(plts, figs_dir)
+    save_figdata(figdata, figs_dir)
 }
 
 

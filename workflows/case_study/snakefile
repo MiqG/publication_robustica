@@ -15,8 +15,6 @@ PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','case_study')
 
 DATASETS = ['LGG']
-CLUSTERING_METHODS = ['DBSCAN']
-
 
 ##### RULES #####
 rule all:
@@ -25,7 +23,7 @@ rule all:
         expand(os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','S.tsv.gz'), dataset=DATASETS),
         
         # make figures
-        #expand(os.path.join(RESULTS_DIR,'figures','{cancer}-{method}'), cancer=CANCER_TYPES, method=CLUSTERING_METHODS)
+        expand(os.path.join(RESULTS_DIR,'figures','{dataset}'), dataset=DATASETS)
         
         
 rule cluster_ica_runs:
@@ -81,13 +79,15 @@ rule cluster_ica_runs:
     
 rule figures_interpret_ica:
     input:
-        S = os.path.join(RESULTS_DIR,'files','cluster_iterations-{cancer}-{method}','S_mean.tsv.gz'),
-        A = os.path.join(RESULTS_DIR,'files','cluster_iterations-{cancer}-{method}','A_mean.tsv.gz'),
-        genexpr = os.path.join(PREP_DIR,'genexpr','{cancer}.tsv.gz'),
-        snv = os.path.join(PREP_DIR,'snv','{cancer}.tsv.gz'),
-        metadata = os.path.join(PREP_DIR,'metadata','{cancer}.tsv')
+        S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','S.tsv.gz'),
+        A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','A.tsv.gz'),
+        genexpr = os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz'),
+        snv = os.path.join(PREP_DIR,'snv','{dataset}.tsv.gz'),
+        metadata = os.path.join(PREP_DIR,'metadata','{dataset}.tsv'),
+        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','LGG','stats.tsv.gz'),
+        sample_properties = '/home/miquel/projects/sso_targets/results/exon_associations_ignoring_confounders/LGG/files/sample_properties.tsv'
     output:
-        directory(os.path.join(RESULTS_DIR,'figures','{cancer}-{method}'))
+        directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
     shell:
         """
         Rscript scripts/figures_interpret_ica.R \
@@ -96,6 +96,8 @@ rule figures_interpret_ica:
                     --genexpr_file={input.genexpr} \
                     --snv_file={input.snv} \
                     --metadata_file={input.metadata} \
+                    --stats_file={input.stats} \
+                    --sample_properties_file={input.sample_properties} \
                     --figs_dir={output}
         """
         
