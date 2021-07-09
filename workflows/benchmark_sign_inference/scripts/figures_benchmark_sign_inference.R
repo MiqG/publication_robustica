@@ -347,15 +347,15 @@ make_figdata = function(performance_evaluation, clustering_evaluation, Ss, As){
     
     # prepare figdata object
     figdata = list()
-    figdata[['benchmark_clustering-ICA-source_matrices']] = sapply(
+    figdata[['benchmark_sign_inference-ICA-source_matrices']] = sapply(
         Ss, simplify=FALSE, function(S){
             S %>% rownames_to_column('gene')
         })
-    figdata[['benchmark_clustering-ICA-mixing_matrices']] = sapply(
+    figdata[['benchmark_sign_inference-ICA-mixing_matrices']] = sapply(
         As, simplify=FALSE, function(A){
             A %>% rownames_to_column('sample')
         })
-    figdata[['benchmark_clustering-evaluation']] = list(
+    figdata[['benchmark_sign_inference-evaluation']] = list(
         performance_evaluation = performance_evaluation,
         clustering_evaluation = clustering_evaluation,
         gene_modules_icasso = modules[['icasso']] %>% rownames_to_column('gene'),
@@ -398,10 +398,10 @@ save_plots = function(plts, figs_dir){
 }
 
 
-save_figdata = function(figdata, files_dir){
-    names(figdata) = paste0('figdata-', names(figdata))
+save_figdata = function(figdata, dir){
     lapply(names(figdata), function(x){
-        filename = file.path(files_dir,paste0(x,'.xlsx'))
+        filename = file.path(dir,'figdata',paste0(x,'.xlsx'))
+        dir.create(dirname(filename), recursive=TRUE)
         write_xlsx(figdata[[x]], filename)
     })
 }
@@ -415,7 +415,6 @@ main = function(){
     S_stds_files = unlist(strsplit(args$S_stds_files,','))
     Ss_files = unlist(strsplit(args$Ss_files,','))
     As_files = unlist(strsplit(args$As_files,','))
-    files_dir = args$files_dir
     figs_dir = args$figs_dir
     
     dir.create(figs_dir, recursive = TRUE)
@@ -459,7 +458,7 @@ main = function(){
     figdata = make_figdata(performance_evaluation, clustering_evaluation, Ss, As)
     
     save_plots(plts, figs_dir)
-    save_figdata(figdata, files_dir)
+    save_figdata(figdata, figs_dir)
 }
 
 
