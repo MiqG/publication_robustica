@@ -382,8 +382,8 @@ save_plots = function(plts, figs_dir){
     
     save_plot(plts[['mem_time-scatter']],'mem_time-scatter','.png',figs_dir, width=12,height=20)
     
-    save_plot(plts[['clustering-silhouettes-violins']],'clustering-silhouettes-violins','.pdf',figs_dir, width=8,height=8)
-    save_plot(plts[['clustering-S_stds-violins']],'clustering-S_stds-violins','.pdf',figs_dir, width=8,height=8)
+    save_plot(plts[['clustering-silhouettes-violins']],'clustering-silhouettes-violins','.pdf',figs_dir, width=12,height=12)
+    save_plot(plts[['clustering-S_stds-violins']],'clustering-S_stds-violins','.pdf',figs_dir, width=12,height=12)
     save_plot(plts[['clustering-silhouettes_vs_stds-scatter']],'clustering-silhouettes_vs_stds-scatter','.png',figs_dir, width=20,height=20)
     
     save_plot(plts[['module_comparisons-module_size-boxplot']],'module_comparisons-module_size-boxplot','.pdf',figs_dir, width=10,height=10)
