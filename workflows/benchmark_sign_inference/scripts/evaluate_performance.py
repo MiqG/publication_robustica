@@ -84,8 +84,8 @@ def load_data(S_all_file, A_all_file):
     We consider the first iteration as our ground truth.
     """
     # ICA runs
-    S_all = pd.read_pickle(S_all_file).values
-    A_all = pd.read_pickle(A_all_file).values
+    S_all = pd.read_pickle(S_all_file)
+    A_all = pd.read_pickle(A_all_file)
 
     return S_all, A_all
 
@@ -257,8 +257,8 @@ def main():
         rica_kws["n_components"] = int(S_all.shape[1] / iterations)
         rica_kws["robust_runs"] = iterations
         rica = RobustICA(**rica_kws)
-        rica.S_all = S_all
-        rica.A_all = A_all
+        rica.S_all = S_all.values
+        rica.A_all = A_all.values
 
         S, A, S_std, A_std, performance, clustering_info = evaluate_performance(rica)
         
@@ -267,10 +267,10 @@ def main():
         clustering_info["algorithm"] = algorithm
 
         # prepare outpus
-        S_robusts[algorithm] = pd.DataFrame(S)
-        S_stds[algorithm] = pd.DataFrame(S_std)
-        A_robusts[algorithm] = pd.DataFrame(A)
-        A_stds[algorithm] = pd.DataFrame(A_std)
+        S_robusts[algorithm] = pd.DataFrame(S, index=S_all.index)
+        S_stds[algorithm] = pd.DataFrame(S_std, index=S_all.index)
+        A_robusts[algorithm] = pd.DataFrame(A, index=A_all.index)
+        A_stds[algorithm] = pd.DataFrame(A_std, index=A_all.index)
         performances.append(performance)
         clustering_infos.append(clustering_info)
 

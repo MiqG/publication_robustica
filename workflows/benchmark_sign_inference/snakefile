@@ -52,7 +52,7 @@ rule all:
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),dataset=DATASETS),
         
         # make figures
-        # expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
+        expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
         
         
 rule evaluate_performance:
@@ -74,18 +74,34 @@ rule evaluate_performance:
                     --algorithms={params.algorithms}
         """
 
-
+formatted = {
+    'S_stds' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S_std.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
+    'Ss' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
+    'As' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-A.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS]
+}
 rule figures_benchmark_performance:
     input:
         performance_evaluation = os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),
-        clustering_info = os.path.join(RESULTS_DIR,'files','{dataset}','clustering_info.tsv.gz')
+        clustering_info = os.path.join(RESULTS_DIR,'files','{dataset}','clustering_info.tsv.gz'),
+        S_stds = formatted['S_stds'],
+        Ss = formatted['Ss'],
+        As = formatted['As']
     output:
-        directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
+        figs_dir = directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
+    params:
+        S_stds = ','.join(formatted['S_stds']),
+        Ss = ','.join(formatted['Ss']),
+        As = ','.join(formatted['As']),
+        files_dir = directory(os.path.join(RESULTS_DIR,'files','{dataset}'))
     shell:
         """
         Rscript scripts/figures_benchmark_sign_inference.R \
                     --performance_evaluation_file={input.performance_evaluation} \
                     --clustering_info_file={input.clustering_info} \
+                    --S_stds_files={params.S_stds} \
+                    --Ss_files={params.Ss} \
+                    --As_files={params.As} \
+                    --files_dir={params.files_dir} \
                     --figs_dir={output}
         """
         
