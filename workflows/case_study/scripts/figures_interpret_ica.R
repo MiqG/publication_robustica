@@ -61,7 +61,7 @@ THRESH_FDR = 0.01
 # metadata_file = file.path(PREP_DIR,'metadata','LGG.tsv')
 # figs_dir = file.path(RESULTS_DIR,'figures','LGG')
 
-# sample_properties_file = '~/projects/sso_targets/results/exon_associations_ignoring_confounders/LGG/files/sample_properties.tsv'
+# sample_indices_file = file.path(PREP_DIR,'sample_indices','LGG.tsv')
 
 ##### FUNCTIONS #####
 define_module = function(x, cutoff=0.01){
@@ -109,25 +109,25 @@ make_heatmap = function(X, metadata, cluster_rows=TRUE, cluster_cols=TRUE){
 }
 
 
-analyze_components = function(A, sample_properties, metadata){
+analyze_components = function(A, metadata){
     
     # do any weights correlate with any sample property?
     X = A %>% column_to_rownames('index')
-    properties = sample_properties %>% column_to_rownames('sampleID')
-    properties_oi = setdiff(colnames(properties),c('OS','OS.time','sample_type','ABSOLUTE'))
+    metadata = metadata %>% column_to_rownames('sampleID')
+    properties_oi = 'mitotic_index'
     samples = rownames(X)
 
     correls = sapply(properties_oi, function(property_oi){
-        y = properties[samples,property_oi]
-        correls = apply(X[samples,], 2, function(x){
+        y = metadata[samples,property_oi]
+        correls = apply(X[samples,,drop=FALSE], 2, function(x){
             cor(x,y, method='spearman', use='pairwise.complete.obs')
         })
     }, simplify=FALSE)
     correls = do.call(rbind, correls)
     
     # Are there any survival associations?
-    survs = apply(X[samples,], 2, function(x){
-        dat = cbind(weight=x, properties[samples,c('OS','OS.time')])
+    survs = apply(X[samples,,drop=FALSE], 2, function(x){
+        dat = cbind(weight=x, metadata[samples,c('OS','OS.time'),drop=FALSE])
         result = summary(coxph(Surv(OS.time, OS) ~ weight, dat))
         assoc = result$coefficients['weight','z']
         return(assoc)
@@ -135,7 +135,7 @@ analyze_components = function(A, sample_properties, metadata){
     survs = data.frame(coxph = survs)
     
     # which components have different weights in samples with and without mutation?
-    samples = metadata[['sampleID']]
+    samples = rownames(metadata)
     is_mut = metadata[['is_mut']]=='TRUE'
     
     result = apply(X[samples,], 2, function(x){
@@ -193,7 +193,7 @@ run_enrichments = function(genes_oi, universe, msigdb){
 }
 
 
-plot_component_oi = function(genexpr, S, A, metadata, sample_properties, 
+plot_component_oi = function(genexpr, S, A, metadata, sample_indices, 
                              component_oi, enrichments){    
     # weights, mitotic index, survival, mutation status
     X = A[,c('index',component_oi)] 
@@ -201,7 +201,7 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_properties,
     X = X %>%
         left_join(metadata[,c('sampleID','OS','OS.time','is_mut')], 
                   by='sampleID') %>%
-        left_join(sample_properties[,c('sampleID','mitotic_index')],
+        left_join(sample_indices[,c('sampleID','mitotic_index')],
                   by='sampleID') %>%
         mutate(OS = OS == 1,
                is_mut = ifelse(is_mut, 'Mutated', 'WT'),
@@ -289,7 +289,7 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_properties,
 }
 
 
-make_figdata = function(S, A, metadata, sample_properties, enrichments){
+make_figdata = function(S, A, metadata, sample_indices, enrichments){
     # make gene modules
     is_selected = S %>% mutate_at(vars(-('sample')), define_module)
     modules = S %>% dplyr::rename(gene=sample)
@@ -300,7 +300,7 @@ make_figdata = function(S, A, metadata, sample_properties, enrichments){
             'source_matrix_S' = S %>% dplyr::rename(gene=sample),
             'mixing_matrix_A' = A,
             'sample_metadata' = metadata,
-            'sample_properties' = sample_properties,
+            'sample_indices' = sample_indices,
             'gene_modules' = modules,
             'enrichment-GO_BP' = as.data.frame(enrichments[['GO_BP']]),
             'enrichment-MSigDB_Hallmarks' = as.data.frame(enrichments[['MSigDB_Hallmarks']])
@@ -359,7 +359,7 @@ main = function(){
     snv_file = args$snv_file
     metadata_file = args$metadata_file
     stats_file = args$stats_file
-    sample_properties_file = args$sample_properties_file
+    sample_indices_file = args$sample_indices_file
     figs_dir = args$figs_dir
     
     dir.create(figs_dir, recursive = TRUE)
@@ -376,13 +376,15 @@ main = function(){
     genexpr = read_tsv(genexpr_file)
     snv = read_tsv(snv_file)
     metadata = read_tsv(metadata_file)
-    sample_properties = read_tsv(sample_properties_file)
+    sample_indices = read_tsv(sample_indices_file)
     
     # checkout silhouettes
     plt = plot_silhouettes(stats)[[1]]
     
     # drop unwanted components: -1, silhouette
-    clean_components = stats %>% filter(silhouette_pearson>0.9) %>% pull(cluster_id)
+    clean_components = stats %>% 
+        filter(silhouette_pearson>0.9) %>% 
+        pull(cluster_id)
     S = S[,c(1,1+clean_components)]
     A = A[,c(1,1+clean_components)]
     stats = stats %>% filter(cluster_id %in% clean_components)
@@ -391,10 +393,12 @@ main = function(){
     mut_samples = snv %>% 
         filter(gene==GENE_OI & effect%in%EFFECT_OI) %>% 
         pull(sampleID)
-    metadata = metadata %>% mutate(is_mut = as.character(sampleID %in% mut_samples))
+    metadata = metadata %>% 
+        mutate(is_mut = as.character(sampleID %in% mut_samples)) %>%
+        left_join(sample_indices, by='sampleID')
     
     # analysis - 95 stands out
-    results = analyze_components(A, sample_properties, metadata)
+    results = analyze_components(A, metadata)
     comps_correls = sort(abs(results[['sample_indices']]['mitotic_index',]))
     comps_survs = results[['survival']] %>% arrange(abs(coxph))
     comps_mitotic_index = results[['mutation']] %>% filter(fdr < 0.05) %>% arrange(abs(med_diff))
@@ -409,11 +413,11 @@ main = function(){
     enrichments = run_enrichments(genes_oi, df %>% pull(gene), msigdb)
     
     # make plots for this component
-    plts = plot_component_oi(genexpr, S, A, metadata, sample_properties, '95', enrichments)
+    plts = plot_component_oi(genexpr, S, A, metadata, sample_indices, '95', enrichments)
     plts[['silhouettes-scatter-unfiltered']] = plt
     
     # make figdata
-    figdata = make_figdata(S, A, metadata, sample_properties, enrichments)
+    figdata = make_figdata(S, A, metadata, sample_indices, enrichments)
     
     # save
     save_plots(plts, figs_dir)

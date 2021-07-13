@@ -84,8 +84,8 @@ rule figures_interpret_ica:
         genexpr = os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz'),
         snv = os.path.join(PREP_DIR,'snv','{dataset}.tsv.gz'),
         metadata = os.path.join(PREP_DIR,'metadata','{dataset}.tsv'),
-        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','LGG','stats.tsv.gz'),
-        sample_properties = '/home/miquel/projects/sso_targets/results/exon_associations_ignoring_confounders/LGG/files/sample_properties.tsv'
+        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','stats.tsv.gz'),
+        sample_properties = os.path.join(PREP_DIR,'sample_indices','{dataset}.tsv')
     output:
         directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
     shell:
