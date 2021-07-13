@@ -70,6 +70,7 @@ define_module = function(x, cutoff=0.01){
     return(x)
 }
 
+
 make_heatmap = function(X, metadata, cluster_rows=TRUE, cluster_cols=TRUE){
     # get parameters
     metadata_sample_col = 'sampleID'
