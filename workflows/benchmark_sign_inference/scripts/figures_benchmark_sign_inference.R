@@ -99,13 +99,25 @@ plot_corr_vs_euc = function(len=10){
         dist_BC = dist(rbind(compB, compC), method = 'euclidean')[1]
     ) %>% melt()
     
+    palette = get_palette('simpsons', 3)
     plts = list()
     
     plts[['corr_vs_euc-scatter']] = df %>% 
         ggline(x='feature', y='value', color='variable', 
-               linetype='dashed', palette='simpsons') + 
+               linetype='dashed', palette=palette) + 
         labs(x="Components' Feature", y='Weight', color='Component') + 
         theme(aspect.ratio=1)
+    
+    plts[['corr_vs_euc-loess_compAB']] = df %>% 
+        mutate(pair = variable %in% c('compA','compB')) %>% 
+        ggscatter(x='feature', y='value', color='pair', conf.int = TRUE, 
+                  add='loess', add.params = list(linetype='dashed'))
+    
+    plts[['corr_vs_euc-loess_compAC']] = df %>% 
+        mutate(pair = variable %in% c('compA','compC')) %>% 
+        ggscatter(x='feature', y='value', color='pair', conf.int = TRUE, 
+                  add='loess', add.params = list(linetype='dashed'), 
+                  palette='Dark2')
     
     plts[['corr_vs_euc-table']] = ggtexttable(metrics, rows = NULL)
     
@@ -378,6 +390,8 @@ save_plot = function(plt, plt_name, extension='.pdf',
 
 save_plots = function(plts, figs_dir){
     save_plot(plts[['corr_vs_euc-scatter']],'corr_vs_euc-scatter','.pdf',figs_dir, width=12,height=12)
+    save_plot(plts[['corr_vs_euc-loess_compAB']],'corr_vs_euc-loess_compAB','.pdf',figs_dir, width=12,height=12)
+    save_plot(plts[['corr_vs_euc-loess_compAC']],'corr_vs_euc-loess_compAC','.pdf',figs_dir, width=12,height=12)
     save_plot(plts[['corr_vs_euc-table']],'corr_vs_euc-table','.pdf',figs_dir, width=8,height=8)
     
     save_plot(plts[['mem_time-scatter']],'mem_time-scatter','.png',figs_dir, width=12,height=20)
