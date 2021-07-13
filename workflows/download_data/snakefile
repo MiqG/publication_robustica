@@ -1,0 +1,110 @@
+# Download databases
+# ------------------
+# - XenaBrowser: TCGA PANCAN datasets
+# - MSigDB: 
+#
+# Download articles
+# -----------------
+# - Sastry2019
+
+import os
+
+ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
+DATA_DIR = os.path.join(ROOT,'data')
+RAW_DIR = os.path.join(DATA_DIR,'raw')
+
+XENA_DIR = os.path.join(RAW_DIR,'UCSCXena')
+MSIGDB_DIR = os.path.join(RAW_DIR,'MSigDB')
+ARTICLES_DIR = os.path.join(RAW_DIR,'articles')
+
+
+rule all:
+    input:
+        # Public Databases
+        '.done/UCSCXena-TCGA-PANCAN.done',
+        '.done/MSigDB.done',
+
+        # ARTICLES
+        '.done/Sastry2019.done'
+        
+        
+##### UCSCXena - TCGA #####
+rule download_ucscxena_tcga_pancan:
+    message:
+        "Download TCGA data from XenaBrowser."
+    output:
+        touch('.done/UCSCXena-TCGA-PANCAN.done'),
+        
+        # RNA-Seq
+        genexpr = os.path.join(XENA_DIR,'TCGA','rnaseq','AdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.xena.gz'),
+        
+        # Mutations
+        snv = os.path.join(XENA_DIR,'TCGA','snv','mc3.v0.2.8.PUBLIC.xena.gz'),
+        
+        # phenotype
+        clinical = os.path.join(XENA_DIR,'TCGA','phenotype','Survival_SupplementalTable_S1_20171025_xena_sp.gz'),
+        sample_type = os.path.join(XENA_DIR,'TCGA','phenotype','TCGA_phenotype_denseDataOnlyDownload.tsv.gz'),
+        
+        readme = os.path.join(XENA_DIR,'TCGA','README.md')
+    params:
+        # RNA-Seq
+        genexpr = 'https://tcga-pancan-atlas-hub.s3.us-east-1.amazonaws.com/latest/EB%2B%2BAdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.xena.gz',
+        
+        # Mutations
+        snv = 'https://tcga-pancan-atlas-hub.s3.us-east-1.amazonaws.com/latest/mc3.v0.2.8.PUBLIC.xena.gz',
+        
+        # Phenotype
+        clinical = 'https://tcga-pancan-atlas-hub.s3.us-east-1.amazonaws.com/latest/Survival_SupplementalTable_S1_20171025_xena_sp.gz',
+        sample_type = 'https://tcga-pancan-atlas-hub.s3.us-east-1.amazonaws.com/latest/TCGA_phenotype_denseDataOnlyDownload.tsv.gz'
+        
+    shell:
+        """
+        # RNA-Seq
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.genexpr} -O {output.genexpr}
+        
+        # Mutations
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.snv} -O {output.snv}
+        
+        # Phenotype
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.clinical} -O {output.clinical}
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.sample_type} -O {output.sample_type}        
+        
+        # readme
+        echo "Downloaded on $(date)." > {output.readme}
+        
+        echo Done!
+        """
+        
+##### MSigDB #####
+rule download_msigdb:
+    params:
+        db = 'https://data.broadinstitute.org/gsea-msigdb/msigdb/release/7.4/msigdb_v7.4_files_to_download_locally.zip'
+    output:
+        touch('.done/MSigDB.done'),
+        db = directory(os.path.join(MSIGDB_DIR,'msigdb_v7.4'))
+    shell:
+        """
+        # download
+        wget --user-agent="Chrome" --no-check-certificate {params.db} -O {output.db}.zip
+        
+        # unzip
+        unzip {output.db}.zip -d {output.db}
+        
+        echo Done!
+        """
+        
+##### ARTICLES #####
+rule download_ica_validation_dataset:
+    params:
+        suptab = 'https://static-content.springer.com/esm/art%3A10.1038%2Fs41467-019-13483-w/MediaObjects/41467_2019_13483_MOESM4_ESM.xlsx'
+    output:
+        touch('.done/Sastry2019.done'),
+        suptab = os.path.join(ARTICLES_DIR,'Sastry2019','ica_analysis.xlsx'),
+        readme = os.path.join(ARTICLES_DIR,'Sastry2019','README.md')
+    shell:
+        """
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.suptab} -O {output.suptab}
+        
+        echo "Downloaded on $(date)." > {output.readme}
+        echo Done!
+        """
