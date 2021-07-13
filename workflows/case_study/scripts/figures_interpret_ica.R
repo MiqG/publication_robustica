@@ -61,9 +61,15 @@ THRESH_FDR = 0.01
 # metadata_file = file.path(PREP_DIR,'metadata','LGG.tsv')
 # figs_dir = file.path(RESULTS_DIR,'figures','LGG')
 
-sample_properties_file = '~/projects/sso_targets/results/exon_associations_ignoring_confounders/LGG/files/sample_properties.tsv'
+# sample_properties_file = '~/projects/sso_targets/results/exon_associations_ignoring_confounders/LGG/files/sample_properties.tsv'
 
 ##### FUNCTIONS #####
+define_module = function(x, cutoff=0.01){
+    fdr = fdrtool(x, plot=FALSE, cutoff.method="fndr", verbose=FALSE)[['qval']]
+    x = fdr < cutoff
+    return(x)
+}
+
 make_heatmap = function(X, metadata, cluster_rows=TRUE, cluster_cols=TRUE){
     # get parameters
     metadata_sample_col = 'sampleID'
@@ -187,7 +193,7 @@ run_enrichments = function(genes_oi, universe, msigdb){
 
 
 plot_component_oi = function(genexpr, S, A, metadata, sample_properties, 
-                                component_oi, enrichments){    
+                             component_oi, enrichments){    
     # weights, mitotic index, survival, mutation status
     X = A[,c('index',component_oi)] 
     colnames(X) = c('sampleID', 'component')
@@ -240,10 +246,11 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_properties,
     genes_oi = df %>% filter(fdr < THRESH_FDR) %>% pull(gene)
     cutoffs = df %>% 
         filter(fdr < THRESH_FDR) %>% 
-        mutate(is_pos = sign(weights)) %>% 
-        group_by(is_pos) %>% 
-        slice_min(order_by = weights, n=1) %>% 
-        pull(weights)
+        mutate(is_pos = weights > 0) 
+    cutoffs = c(
+        cutoffs %>% filter(is_pos) %>% pull(weights) %>% min(),
+        cutoffs %>% filter(!is_pos) %>% pull(weights) %>% max()
+    )
     plts[['weights_genes']] = df %>% 
         ggviolin(x='component', y='weights', fill='orange', color=NA) +
         geom_boxplot(width=0.1, outlier.size = 0.1) +
@@ -254,7 +261,7 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_properties,
         genexpr %>% filter(sample%in%genes_oi) %>% column_to_rownames('sample'), 
         metadata
     )
-    
+
     plts[['weights_vs_enrichment_dotplot-GO_BP']] = dotplot(enrichments[['GO_BP']]) +
         ggtitle(sprintf('GO Biological Processes | n=%s',length(genes_oi)))
     plts[['weights_vs_enrichment_cnetplot-GO_BP']] = cnetplot(enrichments[['GO_BP']]) +
@@ -282,12 +289,18 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_properties,
 
 
 make_figdata = function(S, A, metadata, sample_properties, enrichments){
+    # make gene modules
+    is_selected = S %>% mutate_at(vars(-('sample')), define_module)
+    modules = S %>% dplyr::rename(gene=sample)
+    modules[,-1][!is_selected[,-1]] = NA
+    
     figdata = list(
         'case_study-analysis' = list(
-            'source_matrix_S' = S,
+            'source_matrix_S' = S %>% dplyr::rename(gene=sample),
             'mixing_matrix_A' = A,
             'sample_metadata' = metadata,
             'sample_properties' = sample_properties,
+            'gene_modules' = modules,
             'enrichment-GO_BP' = as.data.frame(enrichments[['GO_BP']]),
             'enrichment-MSigDB_Hallmarks' = as.data.frame(enrichments[['MSigDB_Hallmarks']])
         )
