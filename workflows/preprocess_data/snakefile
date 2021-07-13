@@ -43,7 +43,10 @@ rule all:
         expand(os.path.join(PREP_DIR,'snv','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
         
         # run ICA multiple times on datasets
-        expand(os.path.join(PREP_DIR,'ica_runs','{dataset}'),dataset=DATASETS)
+        expand(os.path.join(PREP_DIR,'ica_runs','{dataset}'), dataset=DATASETS),
+        
+        # compute sample indices
+        expand(os.path.join(PREP_DIR,'sample_indices','{cancer}.tsv'), cancer=CANCER_TYPES)
     
     
 rule prepare_metadata:
@@ -142,3 +145,17 @@ rule compute_ica_runs:
                     --iterations={params.iterations} \
                     --n_jobs={threads}
         """
+        
+        
+rule compute_sample_indices:
+    input:
+        os.path.join(PREP_DIR,'genexpr','{cancer}.tsv.gz')
+    output:
+        os.path.join(PREP_DIR,'sample_indices','{cancer}.tsv')
+    shell:
+        """
+        python scripts/compute_sample_indices.py \
+                    --genexpr_file={input} \
+                    --output_file={output}
+        """
+        
