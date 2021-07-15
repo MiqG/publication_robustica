@@ -61,7 +61,7 @@ THRESH_FDR = 0.01
 # metadata_file = file.path(PREP_DIR,'metadata','LGG.tsv')
 # figs_dir = file.path(RESULTS_DIR,'figures','LGG')
 
-# sample_indices_file = file.path(PREP_DIR,'sample_indices','LGG.tsv')
+# sample_properties_file = file.path(PREP_DIR,'sample_properties','LGG.tsv')
 
 ##### FUNCTIONS #####
 define_module = function(x, cutoff=0.01){
@@ -158,7 +158,7 @@ analyze_components = function(A, metadata){
     
     
     results = list(
-        sample_indices = correls,
+        sample_properties = correls,
         survival = survs,
         mutation = result
     )
@@ -193,7 +193,7 @@ run_enrichments = function(genes_oi, universe, msigdb){
 }
 
 
-plot_component_oi = function(genexpr, S, A, metadata, sample_indices, 
+plot_component_oi = function(genexpr, S, A, metadata, sample_properties, 
                              component_oi, enrichments){    
     # weights, mitotic index, survival, mutation status
     X = A[,c('index',component_oi)] 
@@ -201,7 +201,7 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
     X = X %>%
         left_join(metadata[,c('sampleID','OS','OS.time','is_mut')], 
                   by='sampleID') %>%
-        left_join(sample_indices[,c('sampleID','mitotic_index')],
+        left_join(sample_properties[,c('sampleID','mitotic_index')],
                   by='sampleID') %>%
         mutate(OS = OS == 1,
                is_mut = ifelse(is_mut, 'Mutated', 'WT'),
@@ -289,7 +289,7 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
 }
 
 
-make_figdata = function(S, A, metadata, sample_indices, enrichments){
+make_figdata = function(S, A, metadata, sample_properties, enrichments){
     # make gene modules
     is_selected = S %>% mutate_at(vars(-('sample')), define_module)
     modules = S %>% dplyr::rename(gene=sample)
@@ -300,7 +300,7 @@ make_figdata = function(S, A, metadata, sample_indices, enrichments){
             'source_matrix_S' = S %>% dplyr::rename(gene=sample),
             'mixing_matrix_A' = A,
             'sample_metadata' = metadata,
-            'sample_indices' = sample_indices,
+            'sample_properties' = sample_properties,
             'gene_modules' = modules,
             'enrichment-GO_BP' = as.data.frame(enrichments[['GO_BP']]),
             'enrichment-MSigDB_Hallmarks' = as.data.frame(enrichments[['MSigDB_Hallmarks']])
@@ -359,11 +359,11 @@ main = function(){
     snv_file = args$snv_file
     metadata_file = args$metadata_file
     stats_file = args$stats_file
-    sample_indices_file = args$sample_indices_file
+    sample_properties_file = args$sample_properties_file
     figs_dir = args$figs_dir
     
     dir.create(figs_dir, recursive = TRUE)
-    
+
     # load data
     msigdb = list(
         h = read.gmt(MSIGDB_HALLMARKS),
@@ -376,14 +376,14 @@ main = function(){
     genexpr = read_tsv(genexpr_file)
     snv = read_tsv(snv_file)
     metadata = read_tsv(metadata_file)
-    sample_indices = read_tsv(sample_indices_file)
+    sample_properties = read_tsv(sample_properties_file)
     
     # checkout silhouettes
     plt = plot_silhouettes(stats)[[1]]
     
     # drop unwanted components: -1, silhouette
     clean_components = stats %>% 
-        filter(silhouette_pearson>0.9) %>% 
+        filter(silhouette_euclidean>0.9) %>% 
         pull(cluster_id)
     S = S[,c(1,1+clean_components)]
     A = A[,c(1,1+clean_components)]
@@ -395,16 +395,16 @@ main = function(){
         pull(sampleID)
     metadata = metadata %>% 
         mutate(is_mut = as.character(sampleID %in% mut_samples)) %>%
-        left_join(sample_indices, by='sampleID')
+        left_join(sample_properties, by='sampleID')
     
-    # analysis - 95 stands out
+    # analysis - 67 stands out
     results = analyze_components(A, metadata)
-    comps_correls = sort(abs(results[['sample_indices']]['mitotic_index',]))
+    comps_correls = sort(abs(results[['sample_properties']]['mitotic_index',]))
     comps_survs = results[['survival']] %>% arrange(abs(coxph))
     comps_mitotic_index = results[['mutation']] %>% filter(fdr < 0.05) %>% arrange(abs(med_diff))
     
     # enrichment for component of interest
-    component_oi = '95'
+    component_oi = '67'
     df = S[,c('sample',component_oi)]
     colnames(df) = c('gene', 'weights')
     df[['component']] = component_oi
@@ -413,11 +413,11 @@ main = function(){
     enrichments = run_enrichments(genes_oi, df %>% pull(gene), msigdb)
     
     # make plots for this component
-    plts = plot_component_oi(genexpr, S, A, metadata, sample_indices, '95', enrichments)
+    plts = plot_component_oi(genexpr, S, A, metadata, sample_properties, component_oi, enrichments)
     plts[['silhouettes-scatter-unfiltered']] = plt
     
     # make figdata
-    figdata = make_figdata(S, A, metadata, sample_indices, enrichments)
+    figdata = make_figdata(S, A, metadata, sample_properties, enrichments)
     
     # save
     save_plots(plts, figs_dir)
