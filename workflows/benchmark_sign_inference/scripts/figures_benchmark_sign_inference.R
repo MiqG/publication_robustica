@@ -149,23 +149,23 @@ plot_clustering_evaluation = function(df){
     
     plts = list()
     plts[['clustering-silhouettes-violins']] = X %>%
-        ggviolin(x='algorithm', y='silhouette_pearson', trim = TRUE,
+        ggviolin(x='algorithm', y='silhouette_euclidean', trim = TRUE,
                  fill='algorithm', color=NA, palette='Paired') + 
         guides(fill=FALSE) +
-        geom_boxplot(width=0.1) +
+        geom_boxplot(width=0.1, outlier.size = 0.1) +
         labs(x='Algorithm', y='Silhouette Score') +
         theme_pubr(x.text.angle = 70)
      
     plts[['clustering-S_stds-violins']] = X %>% 
         ggviolin(x='algorithm', y='mean_std_cluster', trim = TRUE,
                  fill='algorithm', color=NA, palette='Paired') + 
-        geom_boxplot(width=0.1) +
+        geom_boxplot(width=0.1, outlier.size = 0.1) +
         guides(fill=FALSE) +
         labs(x='Algorithm', y='Cluster Mean Std.') +
         theme_pubr(x.text.angle = 70)
     
      plts[['clustering-silhouettes_vs_stds-scatter']] = X %>%
-        ggplot(aes(x=silhouette_pearson, y=mean_std_cluster)) +
+        ggplot(aes(x=silhouette_euclidean, y=mean_std_cluster)) +
         geom_text(aes(label=cluster_id)) +
         facet_wrap(~algorithm, scales='free') + 
         theme_pubr(border=TRUE) +
