@@ -60,7 +60,7 @@ plot_performance_profile = function(df){
 plot_silhouettes = function(df, lab=''){
     X = df %>% 
         dplyr::select(cluster_id, property_oi, time, 
-                      max_memory, silhouette_pearson) %>%
+                      max_memory, silhouette_euclidean) %>%
         melt(id.vars = c('cluster_id','property_oi','time','max_memory')) %>%
         mutate(time=as.numeric(time)) %>%
         group_by(property_oi, time, max_memory, cluster_id) %>%
@@ -77,8 +77,7 @@ plot_silhouettes = function(df, lab=''){
     plts[['silhouettes_vs_time']] = ggplot(
         X ,aes(x=time, y=value, fill=NULL, color=property_oi)
         ) + 
-        geom_boxplot(outlier.alpha = 0.5, outlier.size = 0.1, width=20) + 
-        geom_point(aes(x=time, y=median_value, label=property_oi), med, size=0.5) +
+        geom_boxplot(outlier.size = 0.1, width=20) + 
         theme_pubr() + 
         geom_text_repel(
             aes(x=time, y=median_value, label=property_oi), med) + 
@@ -92,13 +91,12 @@ plot_silhouettes = function(df, lab=''){
     plts[['silhouettes_vs_max_memory']] = ggplot(
         X, aes(x=max_memory, y=value, fill=NULL, color=property_oi)
         ) + 
-        geom_boxplot(outlier.alpha = 0, width=20) + 
-        geom_point(aes(x=max_memory, y=median_value, label=property_oi), med, size=0.5) +
+        geom_boxplot(outlier.size = 0.1, width=20) + 
         theme_pubr() + 
         geom_text_repel(
             aes(x=max_memory, y=median_value, label=property_oi), med) +
         guides(color=FALSE) +
-        labs(x='Memory (MiB)', y='Silhouette Score')
+        labs(x='Max. Memory (MiB)', y='Silhouette Score')
     
     plts = sapply(plts, function(plt){ set_palette(plt, palette) }, simplify=FALSE)
     
@@ -124,7 +122,7 @@ make_plots = function(performance, clustering){
 make_figdata = function(performance, clustering){
     summary_clustering = clustering %>% 
         group_by(property_oi, time, max_memory, cluster_id) %>% 
-        summarize(mean_silhouette = mean(silhouette_pearson)) %>%
+        summarize(mean_silhouette = mean(silhouette_euclidean)) %>%
         group_by(property_oi, time, max_memory) %>%
         summarize(
             mean=mean(mean_silhouette), 
@@ -191,8 +189,7 @@ main = function(){
         filter(`function` != 'evaluate_performance') %>%
         group_by(property_oi) %>% 
         mutate(rel_timestamp = get_relative_timestamp(timestamp),
-               `function` = paste0(`function`,'()')
-              )
+               `function` = paste0(`function`,'()'))
     ## clustering time and evaluation    
     clustering_time = performance %>% 
         filter(`function`=='cluster_components()') %>% 
