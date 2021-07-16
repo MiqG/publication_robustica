@@ -37,8 +37,9 @@ def load_data(suptab_file):
     metadata = data.parse('Metadata')
     S = data.parse('S matrix')
     A = data.parse('A matrix')
+    gene_annotation = data.parse('Gene Information')
     
-    return genexpr, metadata, S, A
+    return genexpr, metadata, S, A, gene_annotation
 
 
 def preprocess_genexpr(genexpr):
@@ -59,6 +60,7 @@ def parse_args():
     parser.add_argument("--metadata_file", type=str)
     parser.add_argument("--S_file", type=str)
     parser.add_argument("--A_file", type=str)
+    parser.add_argument("--gene_annotation_file", type=str)
 
     args = parser.parse_args()
 
@@ -72,8 +74,9 @@ def main():
     metadata_file = args.metadata_file
     S_file = args.S_file
     A_file = args.A_file
+    gene_annotation_file = args.gene_annotation_file
     
-    genexpr, metadata, S, A = load_data(suptab_file)
+    genexpr, metadata, S, A, gene_annotation = load_data(suptab_file)
     
     genexpr = preprocess_genexpr(genexpr)
     S = S.loc[S.iloc[:,0] != 'Threshold'].rename(columns={'Unnamed: 0':'index'})
@@ -83,6 +86,7 @@ def main():
     metadata.to_csv(metadata_file, **SAVE_PARAMS)
     S.to_csv(S_file, compression='gzip', **SAVE_PARAMS)
     A.to_csv(A_file, compression='gzip', **SAVE_PARAMS)
+    gene_annotation.to_csv(gene_annotation_file, **SAVE_PARAMS)
     
 
 ##### SCRIPT #####
