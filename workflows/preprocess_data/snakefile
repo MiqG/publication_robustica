@@ -98,7 +98,7 @@ rule prepare_Sastry2019:
         metadata = os.path.join(PREP_DIR,'metadata','Sastry2019.tsv'),
         S = os.path.join(PREP_DIR,'ica','Sastry2019-S.tsv.gz'),
         A = os.path.join(PREP_DIR,'ica','Sastry2019-A.tsv.gz'),
-        gene_annotation = os.path.join(PREP_DIR,'gene_annotation','Sastry.tsv')
+        gene_annotation = os.path.join(PREP_DIR,'gene_annotation','Sastry2019.tsv')
     shell:
         """
         python scripts/prepare_Sastry2019.py \
