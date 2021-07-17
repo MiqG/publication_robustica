@@ -22,26 +22,37 @@ require(proxy)
 require(fdrtool)
 require(latex2exp)
 require(writexl)
+require(ggnewscale)
 
+require(org.EcK12.eg.db)
+require(clusterProfiler)
+require(enrichplot)
 
 ROOT = here::here()
 source(file.path(ROOT,'src','R','utils.R'))
 
 # variables
 ALGORITHMS = c('icasso','robustica_nosign','robustica','robustica_pca')
+ORGDB = org.EcK12.eg.db
+THRESH_JACCARD = 0.9
 
 # Development
 # -----------
+# PREP_DIR = file.path(ROOT,'data','prep')
 # RESULTS_DIR = file.path(ROOT,'results','benchmark_sign_inference','files')
+# algorithms = c('icasso','robustica_nosign','robustica','robustica_pca')
+
 # performance_evaluation_file = file.path(RESULTS_DIR,'Sastry2019','performance_evaluation.tsv.gz')
 # clustering_info_file = file.path(RESULTS_DIR,'Sastry2019','clustering_info.tsv.gz')
 
-# algorithms = c('icasso','robustica_nosign','robustica','robustica_pca')
+# S_means_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','S.tsv.gz')),','))
+# A_means_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','A.tsv.gz')),','))
+
 # S_stds_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','S_std.tsv.gz')),','))
+# A_stds_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','A_std.tsv.gz')),','))
 
-# Ss_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','S.tsv.gz')),','))
-
-# As_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','A.tsv.gz')),','))
+# gene_annotation_file=file.path(PREP_DIR,'gene_annotation','Sastry2019.tsv')
+# genexpr_file = file.path(PREP_DIR,'genexpr','Sastry2019.tsv.gz')
 
 # figs_dir = file.path(ROOT,'results','benchmark_sign_inference','figures','Sastry2019')
 # files_dir = file.path(ROOT,'results','benchmark_sign_inference','files','Sastry2019')
@@ -54,26 +65,22 @@ get_relative_timestamp = function(x){
 }
 
 
-load_S_stds = function(files){
-    Ss = lapply(files, function(file){
+load_mats = function(files, rwnms, idvar, valuename){
+    mats = lapply(files, function(file){
         read_tsv(file) %>% 
-        column_to_rownames('log-TPM') %>%
-        melt() %>% 
+        column_to_rownames(rwnms) %>%
+        rownames_to_column(idvar) %>%
+        melt(id.vars = idvar, 
+             variable.name = 'component', 
+             value.name = valuename) %>% 
         mutate(algorithm = gsub('-.*','',basename(file)))
     })
-    Ss = do.call(rbind, Ss)
-    return(Ss)
-}
-
-
-load_mats = function(files,rownms){
-    mats = lapply(files, function(file){
-        df = read_tsv(file) %>% 
-        column_to_rownames(rownms)
-        colnames(df) = paste0('comp',colnames(df))
-        return(df)
-    })
-    names(mats) = gsub('-.*','',basename(files))
+    mats = do.call(rbind, mats)
+    mats = mats %>% 
+        mutate(
+            component = paste0('comp',component),
+            algorithm = factor(algorithm, levels = ALGORITHMS)
+        )
     return(mats)
 }
 
@@ -145,7 +152,9 @@ plot_performance_profile = function(df){
 
 plot_clustering_evaluation = function(df){
     # get mean silhouette per cluster
-    X = df
+    X = df %>%
+        group_by(algorithm,component,silhouette_euclidean) %>%
+        summarize(mean_std_cluster = mean(weight_std))
     
     plts = list()
     plts[['clustering-silhouettes-violins']] = X %>%
@@ -166,10 +175,43 @@ plot_clustering_evaluation = function(df){
     
      plts[['clustering-silhouettes_vs_stds-scatter']] = X %>%
         ggplot(aes(x=silhouette_euclidean, y=mean_std_cluster)) +
-        geom_text(aes(label=cluster_id)) +
+        geom_text(aes(label=component)) +
         facet_wrap(~algorithm, scales='free') + 
         theme_pubr(border=TRUE) +
         labs(x='Silhouette Score', y='Cluster Mean Std.')
+    
+    return(plts)
+}
+
+
+plot_weights_precision = function(S_info){
+    
+    correls = S_info %>% 
+        group_by(algorithm, component, silhouette_euclidean) %>% 
+        summarize(correlation = cor(abs(weight_mean), weight_std))
+    X = correls %>% 
+        group_by(algorithm) %>%
+        arrange(correlation) %>% 
+        filter(row_number()==1 | row_number()==n()) %>%
+        left_join(S_info, by=c('algorithm','component'))
+    
+
+    plts = list()
+    
+    plts[['clustering-weightS_means_vs_std-violins']] = correls %>%
+        ggviolin(x='algorithm', y='correlation', trim = TRUE,
+                 fill='algorithm', color=NA, palette='Paired') + 
+        geom_boxplot(width=0.05, outlier.size = 0.1) +
+        guides(fill=FALSE) +
+        labs(x='Algorithm', y='Correlation Weights Mean vs Std.')
+    
+    plts[['clustering-weightS_means_vs_std-scatters']] = X %>%
+        ggscatter(x='weight_mean', y='weight_std', 
+                  size=0.5, alpha=0.5) +
+        facet_wrap(~algorithm+component, ncol=2) +
+        geom_text(aes(x=-0.05,y=0.1,label=sprintf('R=%s',round(correlation,2))), 
+                  X %>% distinct(algorithm, component, correlation)) +
+        theme_pubr(border = TRUE)
     
     return(plts)
 }
@@ -182,197 +224,244 @@ define_module = function(x, cutoff=0.01){
 }
 
 
-plot_module_comparisons = function(Ss, As){
-    plts = list()
-    
+run_enrichments = function(genes_oi){
+    print('Running enrichments...')
+    symbols = gene_annotation %>% 
+        filter(b_number %in% genes_oi) %>% 
+        pull(gene_name)
+    result = enrichGO(symbols, OrgDb = ORGDB, keyType='SYMBOL', ont='BP')
+    return(result)
+}
+
+
+make_module_comparisons = function(S_info){
     # get modules from source matrix
-    modules = sapply(Ss, simplify=FALSE, function(S){
-        S %>% mutate_all(define_module)
-    })
+    modules = S_info %>%
+        group_by(algorithm, component) %>%
+        mutate(in_module=define_module(weight_mean))
     
     # module sizes
-    module_size = data.frame(
-        module_icasso = 1:ncol(modules[['icasso']]),
-        icasso = colSums(modules[['icasso']]),
-        robustica = colSums(modules[['robustica_pca']])
-    ) %>% melt() 
-    
-    # module sizes are similar
-    plts[['module_comparisons-module_size-boxplot']] = module_size %>% 
-        filter(variable %in% c('icasso','robustica')) %>%
-        ggstripchart(x='variable', y='value') + 
-        geom_boxplot(width=0.1, alpha=0) + 
-        labs(x='Algorithm', y='Module Size') +
-        stat_compare_means(method='wilcox.test')
+    module_size = modules %>% 
+        filter(in_module) %>% 
+        count(algorithm, component)
     
     # use jaccard similarity to map modules
-    sim = simil(modules[['icasso']], modules[['robustica_pca']], 
-                method='Jaccard', by_rows=FALSE) %>% as.matrix()     
-    plts[['module_comparisons-jaccard']] = sim %>% pheatmap(silent=TRUE)
+    icasso = modules %>% 
+        filter(algorithm == 'icasso') %>% 
+        pivot_wider(id_cols = gene, names_from = component, values_from = in_module)
+    robustica_pca = modules %>% 
+        filter(algorithm == 'robustica_pca') %>% 
+        pivot_wider(id_cols = gene, names_from = component, values_from = in_module)
+    sim = simil(icasso[,-1], robustica_pca[,-1], 
+                method='Jaccard', by_rows=FALSE) %>% as.matrix()
     
-    # map modules in icasso to robustica
-    ## mapping
-    modules_info = apply(sim,1,which.max) %>% 
-        enframe(name = 'module_icasso', value = 'module_robustica') %>%
-        mutate(module_robustica = paste0('comp',module_robustica-1)) %>%
+    
+    # map modules
+    rows2cols = paste0(rownames(sim),'_',colnames(sim)[apply(sim,1,which.max)])
+    cols2rows = paste0(rownames(sim)[apply(sim,2,which.max)],'_',colnames(sim))
+    mapped = intersect(rows2cols, cols2rows) %>% str_split_fixed('_', 2) %>% as.data.frame()
+    unmapped_icasso = setdiff(rows2cols, cols2rows) %>% str_split_fixed('_',2) %>% as.data.frame() %>% mutate(V2=NA)
+    unmapped_robustica_pca = setdiff(cols2rows, rows2cols) %>% str_split_fixed('_',2) %>% as.data.frame() %>% mutate(V1=NA)
+    mapping = rbind(
+        mapped,
+        unmapped_icasso,
+        unmapped_robustica_pca
+    )
+    colnames(mapping) = c('icasso','robustica_pca')
+    mapping = mapping %>% mutate(jaccard = sim[cbind(icasso, robustica_pca)])
+        
+    # add module sizes
+    module_sizes = module_size %>% 
+        filter(algorithm %in% c('icasso','robustica_pca')) %>%
+        pivot_wider(id_cols = component, names_from = algorithm, values_from = n) %>%
+        column_to_rownames('component')
+    
+    mapping = mapping %>% 
+        mutate(
+            icasso_module_size = module_sizes[icasso,'icasso'],
+            robustica_pca_module_size = module_sizes[robustica_pca,'robustica_pca'],
+            module_size_diff = icasso_module_size - robustica_pca_module_size,
+            abs_module_size_diff = abs(module_size_diff)
+        ) %>%
+        mutate(
+            diff_summary = ifelse(module_size_diff == 0, 'equal', 'diff'),
+            diff_summary = ifelse(module_size_diff > 0, 'icasso', diff_summary),
+            diff_summary = ifelse(module_size_diff < 0, 'robustica_pca', diff_summary)
+        )
+    
+    
+    # add module silhouettes and S_stds
+    mapping = mapping %>% 
         left_join(
-            apply(sim,1,max) %>% 
-            enframe(name='module_icasso', value='jaccard'),
-            by='module_icasso'
-        ) %>% left_join(
-            data.frame(
-                module_icasso = colnames(modules[['icasso']]),
-                module_icasso_size = colSums(modules[['icasso']])
-            ),
-            by='module_icasso'
-        ) %>% left_join(
-            data.frame(
-                module_robustica = colnames(modules[['robustica_pca']]),
-                module_robustica_size = colSums(modules[['robustica_pca']])
-            ),
-            by='module_robustica'
-        ) %>% arrange(-jaccard)
-    
-    ## modules in icasso not found by robustica
-    notfound = modules_info %>% 
-        count(module_robustica) %>% 
-        filter(n>1) %>% 
-        pull(module_robustica)
-    modules_icasso = modules_info %>% 
-        filter(module_robustica %in% notfound) %>% 
-        group_by(module_robustica) %>%
-        slice_min(order_by = jaccard, n = 1) %>%
-        pull(module_icasso)
-    
-    plts[['module_comparisons-mapping_icasso-module_sizes']] = modules_info %>% 
-        ggscatter(x='module_icasso_size','module_robustica_size',color='jaccard', 
-                  size='jaccard', alpha=0.75) +
-        geom_text_repel(
-            aes(label=module_icasso), 
-            modules_info %>% filter(module_icasso %in% modules_icasso),
-            box.padding = 0.5) + 
-        scale_color_gradient2(low = 'blue', mid='grey', high = 'red', midpoint = 0.5) + 
-        guides(size=FALSE) + 
-        labs(x='Module Size Icasso', y='Module Size robustica', color='Jaccard Sim.',
-             title=TeX('Mapping gene modules in \\textit{Icasso} to \\textit{robustica}'))
-    
-    X = As[['icasso']][,modules_icasso] %>% 
-        rownames_to_column('sample') %>% melt()
-    plts[['module_comparisons-mapping_icasso-unmapped']] = X %>% 
-        ggviolin(x='variable', y='value') + 
-        geom_boxplot(width=0.1) + 
-        geom_text_repel(aes(label=sample), 
-                        X %>% group_by(variable) %>% 
-                        slice_max(order_by = abs(value), n=10)) +
-        labs(x='Component', y='Weight in Mixing Matrix (A)',
-             title=TeX('Modules detected only by \\textit{Icasso}'))
-    
-    
-    # map modules in robustica to icasso
-    ## mapping
-    modules_info = apply(sim,2,which.max) %>% 
-        enframe(name = 'module_robustica', value = 'module_icasso') %>%
-        mutate(module_icasso = paste0('comp',module_icasso-1)) %>%
+            S_info %>% filter(algorithm=='icasso') %>% 
+            group_by(component, silhouette_euclidean) %>% 
+            summarize(avg_weight_std=mean(weight_std)) %>% 
+            rename_all(~ paste0('icasso_',.x)) %>%
+            dplyr::rename(icasso=icasso_component),
+            by = 'icasso'
+        ) %>% 
         left_join(
-            apply(sim,2,max) %>% 
-            enframe(name='module_robustica', value='jaccard'),
-            by='module_robustica'
-        ) %>% left_join(
-            data.frame(
-                module_icasso = colnames(modules[['icasso']]),
-                module_icasso_size = colSums(modules[['icasso']])
-            ),
-            by='module_icasso'
-        ) %>% left_join(
-            data.frame(
-                module_robustica = colnames(modules[['robustica_pca']]),
-                module_robustica_size = colSums(modules[['robustica_pca']])
-            ),
-            by='module_robustica'
-        ) %>% arrange(-jaccard)
+            S_info %>% filter(algorithm=='robustica_pca') %>% 
+            group_by(component, silhouette_euclidean) %>% 
+            summarize(avg_weight_std=mean(weight_std)) %>% 
+            rename_all(~ paste0('robustica_pca_',.x)) %>%
+            dplyr::rename(robustica_pca=robustica_pca_component),
+            by = 'robustica_pca'
+        )   
 
-    ## modules in robustica not found by icasso
-    notfound = modules_info %>% 
-        count(module_icasso) %>% 
-        filter(n>1) %>% 
-        pull(module_icasso)
-    modules_robustica = modules_info %>% 
-        filter(module_icasso %in% notfound) %>% 
-        group_by(module_icasso) %>%
-        slice_min(order_by = jaccard, n = 1) %>%
-        pull(module_robustica)
+#     # enrichments in modules with low jaccard
+#     enrichments = list()
+#     ## icasso
+#     components_oi = mapping %>% 
+#         filter(!is.na(icasso)) %>%
+#         filter(jaccard < THRESH_JACCARD | is.na(jaccard)) %>%
+#         pull(icasso)
+#     genes_oi = modules %>% 
+#         filter(algorithm=='icasso' & component%in%components_oi & in_module)
+#     genes_oi = split(genes_oi$gene, genes_oi$component)
     
-    ## icasso vs robustica: modules different when small.
-    plts[['module_comparisons-mapping_robustica-module_sizes']] = modules_info %>% 
-        ggscatter(x='module_icasso_size','module_robustica_size',color='jaccard', 
-                  size='jaccard', alpha=0.75) + 
-        geom_text_repel(
-            aes(label=module_robustica), 
-            modules_info %>% filter(module_robustica %in% modules_robustica),
-            box.padding = 0.5) + 
+#     enrichments[['icasso']] = sapply(genes_oi, simplify=FALSE, function(x){run_enrichments(x)})
+    
+#     ## robustica
+#     components_oi = mapping %>% 
+#         filter(!is.na(robustica_pca)) %>%
+#         filter(jaccard < THRESH_JACCARD | is.na(jaccard)) %>%
+#         pull(robustica_pca)
+#     genes_oi = modules %>% 
+#         filter(algorithm=='robustica_pca' & component%in%components_oi & in_module)
+#     genes_oi = split(genes_oi$gene, genes_oi$component)
+    
+#     enrichments[['robustica_pca']] = sapply(genes_oi, simplify=FALSE, function(x){run_enrichments(x)})
+    
+#     mapping = mapping %>% 
+#         left_join(
+#             sapply(enrichments[['icasso']], nrow) %>% 
+#             enframe(name = 'icasso', value = 'icasso_enriched'),
+#             by = 'icasso'
+#         )%>% 
+#         left_join(
+#             sapply(enrichments[['robustica_pca']], nrow) %>% 
+#             enframe(name = 'robustica_pca', value = 'robustica_pca_enriched'),
+#             by = 'robustica_pca'
+#         )
+    
+    module_comparisons = list(
+        'sim' = sim,
+        'mapping' = mapping
+    )
+    return(module_comparisons)
+}
+
+
+plot_module_comparisons = function(module_comparisons){
+    # unlist data
+    sim = module_comparisons[['sim']]
+    mapping = module_comparisons[['mapping']]
+    
+    # make plots
+    plts = list()
+    
+    plts[['module_comparisons-jaccard']] = sim %>% pheatmap(silent=TRUE, cluster_cols = FALSE, cluster_rows=FALSE, fontsize = 2)
+    
+    plts[['module_comparisons-module_sizes-scatter']] = mapping %>% 
+        arrange(jaccard) %>%
+        ggscatter(x='icasso_module_size',
+                  y='robustica_pca_module_size',
+                  color='jaccard', alpha=0.5) +
         scale_color_gradient2(low = 'blue', mid='grey', high = 'red', midpoint = 0.5) + 
         guides(size=FALSE) + 
-        labs(x='Module Size Icasso', y='Module Size robustica', color='Jaccard Sim.',
-             title=TeX('Mapping gene modules in \\textit{robustica} to \\textit{Icasso}'))
+        geom_abline(intercept = 0, slope = 1, linetype='dashed') +
+        new_scale("color") +
+        geom_text_repel(
+            aes(label=value, color=name), 
+            mapping %>% 
+                filter(abs_module_size_diff > 8) %>% 
+                pivot_longer(cols = c(icasso,robustica_pca)),
+            box.padding = 0.7
+        ) +
+        scale_color_manual("Algorithm", values=c('#A6CEE3','#33A02C')) +
+        labs(x='Module Size Icasso', 
+             y='Module Size robustica', 
+             color='Jaccard Sim.',
+             title=TeX(sprintf('Mapped gene modules between \\textit{Icasso} and \\textit{robustica} | n=%s',sum(mapping[['mapped_icasso']]))))
     
-    X = As[['robustica_pca']][,modules_robustica] %>% 
-        rownames_to_column('sample') %>% melt()
-    plts[['module_comparisons-mapping_robustica-unmapped']] = X %>% 
-        ggviolin(x='variable', y='value') + 
-        geom_boxplot(width=0.1) + 
-        geom_text_repel(aes(label=sample), 
-                        X %>% group_by(variable) %>% 
-                        slice_max(order_by = abs(value), n=10)) +
-        labs(x='Component', y='Weight in Mixing Matrix (A)',
-             title=TeX('Modules detected only by \\textit{robustica}'))
     
+    plts[['module_comparisons-module_sizes_diffs-hist']] = mapping %>%
+        gghistogram(x='module_size_diff', fill='darkblue', color=NA, bins=25) +
+        labs(x='Module Size Icasso - Module Size Robustica', y='Count')
+    
+    
+    plts[['module_comparisons-module_sizes_diffs-barplot']] = mapping %>% 
+        count(diff_summary) %>% drop_na() %>%
+        ggbarplot(x='diff_summary', y='n', palette='Dark2', 
+                  fill='diff_summary', color=NA, label = TRUE) +
+        guides(fill=FALSE) +
+        labs(x='Summary of Module Size Difference')
+    
+    plts[['module_comparisons-module_sizes_diffs-strip']] = mapping %>% 
+        drop_na(diff_summary) %>%
+        ggstripchart(x='diff_summary', y='module_size_diff', alpha=0.5,
+                     palette='Dark2', color='diff_summary') +
+        labs(x='Summary of Module Size Difference') +
+        guides(color=FALSE)
+    
+    plts[['module_comparisons-module_sizes_vs_jaccard']] = mapping %>% 
+        ggscatter(x='robustica_pca_module_size', y='jaccard', add='reg.line', 
+                  add.params=list(linetype='dashed'), conf.int = TRUE, 
+                  size=1, alpha=0.5) + 
+        stat_cor(method='spearman', label.x = 20)
+    
+    plts[['module_comparisons-low_jaccard']] = mapping %>% 
+        mutate(is_low=jaccard<THRESH_JACCARD) %>% 
+        count(is_low) %>%
+        drop_na() %>%
+        ggbarplot(x='is_low', y='n', fill='is_low', 
+                  color=NA, label=TRUE, palette='jco') +
+        labs(x=sprintf('Jaccard < %s',THRESH_JACCARD), y='Count') +
+        guides(fill=FALSE)
+        
     return(plts)
 }
 
 
-make_plots = function(performance_evaluation, clustering_evaluation, Ss, As){
+make_plots = function(performance_evaluation, S_info, module_comparisons){
     plts = list(
         plot_corr_vs_euc(),
         plot_performance_profile(performance_evaluation),
-        plot_clustering_evaluation(clustering_evaluation),
-        plot_module_comparisons(Ss, As)
+        plot_clustering_evaluation(S_info),
+        plot_weights_precision(S_info),
+        plot_module_comparisons(module_comparisons)
     )
     plts = do.call(c,plts)
     return(plts)
 }
 
 
-make_figdata = function(performance_evaluation, clustering_evaluation, Ss, As){
+make_figdata = function(performance_evaluation, clustering_evaluation, S_info, A_info, module_comparisons){
     
     # prep
     ## gene module evaluation
-    modules = sapply(Ss, simplify=FALSE, function(S){
-        S %>% 
-        rownames_to_column("gene") %>%
-        mutate_at(vars(-("gene")), define_module) %>%
-        column_to_rownames("gene")
-    })
-    sim = simil(modules[['icasso']], modules[['robustica_pca']], 
-                method='Jaccard', by_rows=FALSE) %>% as.matrix()  
+    modules = S_info %>%
+        group_by(algorithm, component) %>%
+        mutate(in_module=define_module(weight_mean))
+    sim = module_comparisons[['sim']]
     sim = matrix(sim, nrow = nrow(sim), ncol=ncol(sim), dimnames = dimnames(sim)) %>% 
         as.data.frame()
+    mapping = module_comparisons[['mapping']]
     
     # prepare figdata object
     figdata = list()
-    figdata[['benchmark_sign_inference-ICA-source_matrices']] = sapply(
-        Ss, simplify=FALSE, function(S){
-            S %>% rownames_to_column('gene')
-        })
-    figdata[['benchmark_sign_inference-ICA-mixing_matrices']] = sapply(
-        As, simplify=FALSE, function(A){
-            A %>% rownames_to_column('sample')
-        })
+    figdata[['benchmark_sign_inference-ICA-source_matrices-weight_means']] = S_info
+    figdata[['benchmark_sign_inference-ICA-source_matrices-weight_stds']] = S_info
+    igdata[['benchmark_sign_inference-ICA-mixing_matrices-weight_means']] = A_info
+    figdata[['benchmark_sign_inference-ICA-mixing_matrices-weight_stds']] = A_info
+    
     figdata[['benchmark_sign_inference-evaluation']] = list(
         performance_evaluation = performance_evaluation,
         clustering_evaluation = clustering_evaluation,
-        gene_modules_icasso = modules[['icasso']] %>% rownames_to_column('gene'),
-        gene_modules_robustica_pca = modules[['robustica_pca']] %>% rownames_to_column('gene'),
-        gene_modules_jaccard_similarity = sim %>% rownames_to_column('component')
+        gene_modules = modules,
+        gene_modules_jaccard_similarity = sim %>% rownames_to_column('component'),
+        gene_modules_mapping = mapping
     )
     
     return(figdata)
@@ -389,26 +478,31 @@ save_plot = function(plt, plt_name, extension='.pdf',
 
 
 save_plots = function(plts, figs_dir){
+    # example
     save_plot(plts[['corr_vs_euc-scatter']],'corr_vs_euc-scatter','.pdf',figs_dir, width=12,height=12)
     save_plot(plts[['corr_vs_euc-loess_compAB']],'corr_vs_euc-loess_compAB','.pdf',figs_dir, width=12,height=12)
     save_plot(plts[['corr_vs_euc-loess_compAC']],'corr_vs_euc-loess_compAC','.pdf',figs_dir, width=12,height=12)
-    save_plot(plts[['corr_vs_euc-table']],'corr_vs_euc-table','.pdf',figs_dir, width=8,height=8)
+    save_plot(plts[['corr_vs_euc-table']],'corr_vs_euc-table','.pdf',figs_dir, width=12,height=12)
     
+    # memory time profiles
     save_plot(plts[['mem_time-scatter']],'mem_time-scatter','.png',figs_dir, width=12,height=20)
     
+    # clustering
     save_plot(plts[['clustering-silhouettes-violins']],'clustering-silhouettes-violins','.pdf',figs_dir, width=12,height=12)
     save_plot(plts[['clustering-S_stds-violins']],'clustering-S_stds-violins','.pdf',figs_dir, width=12,height=12)
     save_plot(plts[['clustering-silhouettes_vs_stds-scatter']],'clustering-silhouettes_vs_stds-scatter','.png',figs_dir, width=20,height=20)
+    save_plot(plts[['clustering-weightS_means_vs_std-violins']],'clustering-weightS_means_vs_std-violins','.pdf',figs_dir, width=12,height=12)
+    save_plot(plts[['clustering-weightS_means_vs_std-scatters']],'clustering-weightS_means_vs_std-scatters','.png',figs_dir, width=20,height=20)
     
-    save_plot(plts[['module_comparisons-module_size-boxplot']],'module_comparisons-module_size-boxplot','.pdf',figs_dir, width=10,height=10)
-    
+    # module comparisons
     save_plot(plts[['module_comparisons-jaccard']],'module_comparisons-jaccard','.png',figs_dir, width=30, height=30)
     
-    save_plot(plts[['module_comparisons-mapping_icasso-module_sizes']],'module_comparisons-mapping_icasso-module_sizes','.pdf',figs_dir, width=15, height=15)
-    save_plot(plts[['module_comparisons-mapping_robustica-module_sizes']],'module_comparisons-mapping_robustica-module_sizes','.pdf',figs_dir, width=15, height=15)
-    
-    save_plot(plts[['module_comparisons-mapping_icasso-unmapped']],'module_comparisons-mapping_icasso-unmapped','.pdf',figs_dir, width=15, height=15)
-    save_plot(plts[['module_comparisons-mapping_robustica-unmapped']],'module_comparisons-mapping_robustica-unmapped','.pdf',figs_dir, width=15, height=15)
+    save_plot(plts[['module_comparisons-module_sizes-scatter']],'module_comparisons-module_sizes-scatter','.pdf',figs_dir, width=12, height=12)
+    save_plot(plts[['module_comparisons-module_sizes_diffs-hist']],'module_comparisons-module_sizes_diffs-hist','.pdf',figs_dir, width=12, height=12)
+    save_plot(plts[['module_comparisons-module_sizes_diffs-barplot']],'module_comparisons-module_sizes_diffs-barplot','.pdf',figs_dir, width=12, height=12)
+    save_plot(plts[['module_comparisons-module_sizes_diffs-strip']],'module_comparisons-module_sizes_diffs-strip','.pdf',figs_dir, width=12, height=12)
+    save_plot(plts[['module_comparisons-module_sizes_vs_jaccard']],'module_comparisons-module_sizes_vs_jaccard','.pdf',figs_dir, width=12, height=12)
+    save_plot(plts[['module_comparisons-low_jaccard']],'module_comparisons-low_jaccard','.pdf',figs_dir, width=12, height=12)
 }
 
 
@@ -427,13 +521,15 @@ main = function(){
     performance_evaluation_file = args$performance_evaluation_file
     clustering_info_file = args$clustering_info_file
     S_stds_files = unlist(strsplit(args$S_stds_files,','))
-    Ss_files = unlist(strsplit(args$Ss_files,','))
-    As_files = unlist(strsplit(args$As_files,','))
+    S_means_files = unlist(strsplit(args$S_means_files,','))
+    A_means_files = unlist(strsplit(args$A_means_files,','))
+    A_stds_files = unlist(strsplit(args$A_stds_files,','))
     figs_dir = args$figs_dir
     
     dir.create(figs_dir, recursive = TRUE)
     
     # load data
+    # gene_annotation = read_tsv(gene_annotation_file) %>% dplyr::rename(b_number=`b-number`)
     performance_evaluation = read_tsv(performance_evaluation_file) %>% 
         filter(`function` != 'evaluate_performance') %>%
         group_by(algorithm) %>% 
@@ -442,37 +538,45 @@ main = function(){
                algorithm = factor(algorithm, levels = ALGORITHMS))
     
     clustering_info = read_tsv(clustering_info_file) %>%
-        mutate(algorithm = factor(
-            algorithm, levels = ALGORITHMS)
+        mutate(
+            cluster_id = paste0('comp',cluster_id),
+            algorithm = factor(algorithm, levels = ALGORITHMS)
         )
     
-    S_stds = load_S_stds(S_stds_files) %>%
-        mutate(algorithm = factor(algorithm, levels = ALGORITHMS))
+    S_means = load_mats(S_means_files, 'log-TPM', 'gene', 'weight_mean')
+    S_stds = load_mats(S_stds_files, 'log-TPM', 'gene', 'weight_std')
     
-    Ss = load_mats(Ss_files,'log-TPM')
-    As = load_mats(As_files,'index')
+    A_means = load_mats(A_means_files, 'index', 'sample', 'weight_mean')
+    A_stds = load_mats(A_stds_files, 'index', 'sample', 'weight_std')
     
-    # combine clustering_info and S_stds
+    ## process clustering info
     clustering_evaluation = clustering_info %>%
         group_by(algorithm, cluster_id) %>%
         summarise(
             silhouette_pearson = mean(silhouette_pearson),
             silhouette_euclidean = mean(silhouette_euclidean)
         ) %>% 
-        mutate(cluster_id = as.factor(cluster_id)) %>%
-        left_join(
-            S_stds %>%
-            group_by(algorithm, variable) %>%
-            summarise(mean_std_cluster = mean(value)) %>%
-            dplyr::rename(cluster_id=variable),
-            by = c('algorithm','cluster_id')
-        )
+        dplyr::rename(component=cluster_id) %>% ungroup() 
     
-    plts = make_plots(performance_evaluation, clustering_evaluation, Ss, As)
-    figdata = make_figdata(performance_evaluation, clustering_evaluation, Ss, As)
+    ## combine clustering_info, means and stds
+    S_info = S_means %>%
+        left_join(S_stds, by = c('algorithm','component','gene')) %>%
+        left_join(clustering_evaluation, by = c('algorithm','component'))
     
+    A_info = A_means %>%
+        left_join(A_stds, by = c('algorithm','component','sample'))
+    
+    # analysis
+    module_comparisons = make_module_comparisons(S_info)
+    figdata = make_figdata(performance_evaluation, clustering_evaluation, 
+                           S_info, A_info, module_comparisons)
+    
+    # visualize
+    plts = make_plots(performance_evaluation, S_info, module_comparisons)
+    
+    # save
     save_plots(plts, figs_dir)
-    save_figdata(figdata, figs_dir)
+    save_figdata(figdata[1], figs_dir)
 }
 
 
