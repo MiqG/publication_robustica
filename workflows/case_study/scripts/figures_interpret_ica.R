@@ -244,12 +244,15 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
     colnames(df) = c('gene', 'weights')
     df[['component']] = component_oi
     df[['fdr']] = fdrtool(df$weights, plot = FALSE, verbose=FALSE)[['qval']]
+    samples_mut = X %>% filter(is_mut=='Mutated') %>% pull(sampleID)
+    samples_wt = X %>% filter(is_mut=='WT') %>% pull(sampleID)
     df = df %>%
         left_join(
-            data.frame(gene = genexpr[[1]], 
-                       mean_expression = genexpr[,-1] %>% rowMeans()),
-            by='gene'
-        )
+            data.frame(
+                gene = genexpr[[1]], 
+                mean_expression_mut = genexpr[,samples_mut] %>% rowMeans(),
+                mean_expression_wt = genexpr[,samples_wt] %>% rowMeans()), 
+            by='gene')
     genes_oi = df %>% filter(fdr < THRESH_FDR) %>% pull(gene)
     cutoffs = df %>% 
         filter(fdr < THRESH_FDR) %>% 
