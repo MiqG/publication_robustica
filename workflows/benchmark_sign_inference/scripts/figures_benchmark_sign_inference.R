@@ -361,7 +361,7 @@ plot_module_comparisons = function(module_comparisons){
     # make plots
     plts = list()
     
-    plts[['module_comparisons-jaccard']] = sim %>% pheatmap(silent=TRUE, cluster_cols = FALSE, cluster_rows=FALSE, fontsize = 2)
+    plts[['module_comparisons-jaccard']] = sim %>% pheatmap(silent=TRUE, cluster_cols = FALSE, cluster_rows=FALSE, fontsize = 6)
     
     plts[['module_comparisons-module_sizes-scatter']] = mapping %>% 
         arrange(jaccard) %>%
@@ -437,7 +437,18 @@ make_plots = function(performance_evaluation, S_info, module_comparisons){
 }
 
 
-make_figdata = function(performance_evaluation, clustering_evaluation, S_info, A_info, module_comparisons){
+named_group_split <- function(.tbl, ...) {
+  grouped <- group_by(.tbl, ...)
+  names <- rlang::eval_bare(rlang::expr(paste(!!!group_keys(grouped), sep = " / ")))
+
+  grouped %>% 
+    group_split() %>% 
+    rlang::set_names(names)
+}
+
+
+make_figdata = function(performance_evaluation, clustering_evaluation, 
+                        S_info, A_info, module_comparisons){
     
     # prep
     ## gene module evaluation
@@ -451,15 +462,30 @@ make_figdata = function(performance_evaluation, clustering_evaluation, S_info, A
     
     # prepare figdata object
     figdata = list()
-    figdata[['benchmark_sign_inference-ICA-source_matrices-weight_means']] = S_info
-    figdata[['benchmark_sign_inference-ICA-source_matrices-weight_stds']] = S_info
-    igdata[['benchmark_sign_inference-ICA-mixing_matrices-weight_means']] = A_info
-    figdata[['benchmark_sign_inference-ICA-mixing_matrices-weight_stds']] = A_info
+    figdata[['benchmark_sign_inference-ICA-source_matrices-weight_means']] = S_info %>% 
+        named_group_split(algorithm) %>% 
+        map(~ pivot_wider(data = ., id_cols = gene, 
+                          names_from = component, values_from = weight_mean))
+    figdata[['benchmark_sign_inference-ICA-source_matrices-weight_stds']] = S_info %>% 
+        named_group_split(algorithm) %>% 
+        map(~ pivot_wider(data = ., id_cols = gene, 
+                          names_from = component, values_from = weight_std))
+    figdata[['benchmark_sign_inference-ICA-mixing_matrices-weight_means']] = A_info %>% 
+        named_group_split(algorithm) %>% 
+        map(~ pivot_wider(data = ., id_cols = sample, 
+                          names_from = component, values_from = weight_mean))
+    figdata[['benchmark_sign_inference-ICA-mixing_matrices-weight_stds']] = A_info %>% 
+        named_group_split(algorithm) %>% 
+        map(~ pivot_wider(data = ., id_cols = sample, 
+                          names_from = component, values_from = weight_std))
+    figdata[['benchmark_sign_inference-gene_modules']] = modules %>% 
+        named_group_split(algorithm) %>% 
+        map(~ pivot_wider(data = ., id_cols = gene, 
+                          names_from = component, values_from = in_module))
     
     figdata[['benchmark_sign_inference-evaluation']] = list(
         performance_evaluation = performance_evaluation,
         clustering_evaluation = clustering_evaluation,
-        gene_modules = modules,
         gene_modules_jaccard_similarity = sim %>% rownames_to_column('component'),
         gene_modules_mapping = mapping
     )
@@ -497,7 +523,7 @@ save_plots = function(plts, figs_dir){
     # module comparisons
     save_plot(plts[['module_comparisons-jaccard']],'module_comparisons-jaccard','.png',figs_dir, width=30, height=30)
     
-    save_plot(plts[['module_comparisons-module_sizes-scatter']],'module_comparisons-module_sizes-scatter','.pdf',figs_dir, width=12, height=12)
+    save_plot(plts[['module_comparisons-module_sizes-scatter']] + theme(aspect.ratio = 1),'module_comparisons-module_sizes-scatter','.pdf',figs_dir, width=15, height=15)
     save_plot(plts[['module_comparisons-module_sizes_diffs-hist']],'module_comparisons-module_sizes_diffs-hist','.pdf',figs_dir, width=12, height=12)
     save_plot(plts[['module_comparisons-module_sizes_diffs-barplot']],'module_comparisons-module_sizes_diffs-barplot','.pdf',figs_dir, width=12, height=12)
     save_plot(plts[['module_comparisons-module_sizes_diffs-strip']],'module_comparisons-module_sizes_diffs-strip','.pdf',figs_dir, width=12, height=12)
@@ -576,7 +602,7 @@ main = function(){
     
     # save
     save_plots(plts, figs_dir)
-    save_figdata(figdata[1], figs_dir)
+    save_figdata(figdata, figs_dir)
 }
 
 
