@@ -50,6 +50,8 @@ rule all:
     input:
         # evaluate performance
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),dataset=DATASETS),
+        # evaluate module mapping
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz'),dataset=DATASETS),
         
         # make figures
         expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
@@ -74,6 +76,29 @@ rule evaluate_performance:
                     --algorithms={params.algorithms}
         """
 
+        
+rule evaluate_module_mapping:
+    input:
+        S = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
+        A = os.path.join(PREP_DIR,'ica_runs','{dataset}','A.pickle.gz'),
+    output:
+        os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz')
+    params:
+        algorithms = ','.join(ALGORITHMS),
+        iterations = ITERATIONS,
+        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset]
+    shell:
+        """
+        python scripts/evaluate_module_mapping.py \
+                    --S_all_file={input.S} \
+                    --A_all_file={input.A} \
+                    --output_file={output} \
+                    --algorithms={params.algorithms} \
+                    --iterations={params.iterations} \
+                    --n_components={params.n_components}
+        """
+        
+        
 formatted = {
     'S_means' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
     'S_stds' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S_std.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
