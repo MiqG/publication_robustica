@@ -100,8 +100,17 @@ plot_silhouettes = function(df, lab=''){
     
     plts = sapply(plts, function(plt){ set_palette(plt, palette) }, simplify=FALSE)
     
-    names(plts) = paste0(lab, names(plts))
     
+    # memory vs time vs silhouettes
+    plts[['silhouettes_vs_max_memory_vs_time']] = X %>% 
+        group_by(property_oi, time, max_memory) %>% 
+        summarize(silhouette = median(value)) %>% 
+        ggscatter(x='time', y='max_memory', size='silhouette', repel = TRUE, 
+                  color='property_oi', label='property_oi') +
+        guides(color=FALSE) +
+        labs(x='Time (s)', y='Max. Memory (MiB)', size='Silhouette Score')
+
+    names(plts) = paste0(lab, names(plts))
     return(plts)
 }
 
@@ -162,6 +171,8 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['mem_time-scatter']] + facet_wrap(~property_oi, ncol=2, scales='free'),'mem_time-scatter','.png',figs_dir, width=20, height=20)
     save_plot(plts[['silhouettes_vs_time']], 'silhouettes_vs_time','.pdf',figs_dir, width=12, height=12, device=cairo_pdf)
     save_plot(plts[['silhouettes_vs_max_memory']], 'silhouettes_vs_max_memory','.pdf',figs_dir, width=12, height=12, device=cairo_pdf)
+    save_plot(plts[['silhouettes_vs_max_memory_vs_time']], 'silhouettes_vs_max_memory_vs_time','.pdf',figs_dir, width=12, height=12, device=cairo_pdf)
+    
 }
 
 
