@@ -44,6 +44,7 @@ THRESH_JACCARD = 0.9
 
 # performance_evaluation_file = file.path(RESULTS_DIR,'Sastry2019','performance_evaluation.tsv.gz')
 # clustering_info_file = file.path(RESULTS_DIR,'Sastry2019','clustering_info.tsv.gz')
+# mapping_eval_file = file.path(RESULTS_DIR,'Sastry2019','module_mapping_evaluation.tsv.gz')
 
 # S_means_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','S.tsv.gz')),','))
 # A_means_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','A.tsv.gz')),','))
@@ -424,13 +425,26 @@ plot_module_comparisons = function(module_comparisons){
 }
 
 
-make_plots = function(performance_evaluation, S_info, module_comparisons){
+plot_mapping_eval = function(mapping_eval){
+    plts = list()
+    plts[['mapping_eval-errorplot']] = mapping_eval %>% 
+        filter(algorithm %in% c('icasso','robustica_pca')) %>% 
+        ggline(x='runs', y='jaccard', add='mean_se', 
+               numeric.x.axis = TRUE, palette=get_palette('Paired',4)[c(1,4)],
+               color='algorithm', linetype='dashed')
+    
+    return(plts)
+}
+
+
+make_plots = function(performance_evaluation, S_info, module_comparisons, mapping_eval){
     plts = list(
         plot_corr_vs_euc(),
         plot_performance_profile(performance_evaluation),
         plot_clustering_evaluation(S_info),
         plot_weights_precision(S_info),
-        plot_module_comparisons(module_comparisons)
+        plot_module_comparisons(module_comparisons),
+        plot_mapping_eval(mapping_eval)
     )
     plts = do.call(c,plts)
     return(plts)
@@ -448,7 +462,7 @@ named_group_split <- function(.tbl, ...) {
 
 
 make_figdata = function(performance_evaluation, clustering_evaluation, 
-                        S_info, A_info, module_comparisons){
+                        S_info, A_info, module_comparisons, mapping_eval){
     
     # prep
     ## gene module evaluation
@@ -486,11 +500,22 @@ make_figdata = function(performance_evaluation, clustering_evaluation,
     figdata[['benchmark_sign_inference-evaluation']] = list(
         performance_evaluation = performance_evaluation,
         clustering_evaluation = clustering_evaluation,
+        module_mapping_diff_runs = mapping_eval,
         gene_modules_jaccard_similarity = sim %>% rownames_to_column('component'),
         gene_modules_mapping = mapping
     )
     
     return(figdata)
+}
+
+
+
+save_figdata = function(figdata, dir){
+    lapply(names(figdata), function(x){
+        filename = file.path(dir,'figdata',paste0(x,'.xlsx'))
+        dir.create(dirname(filename), recursive=TRUE)
+        write_xlsx(figdata[[x]], filename)
+    })
 }
 
 
@@ -523,21 +548,14 @@ save_plots = function(plts, figs_dir){
     # module comparisons
     save_plot(plts[['module_comparisons-jaccard']],'module_comparisons-jaccard','.png',figs_dir, width=30, height=30)
     
+    save_plot(plts[['mapping_eval-errorplot']],'mapping_eval-errorplot','.pdf', figs_dir, width=12, height=12)
+    
     save_plot(plts[['module_comparisons-module_sizes-scatter']] + theme(aspect.ratio = 1),'module_comparisons-module_sizes-scatter','.pdf',figs_dir, width=15, height=15)
     save_plot(plts[['module_comparisons-module_sizes_diffs-hist']],'module_comparisons-module_sizes_diffs-hist','.pdf',figs_dir, width=12, height=12)
     save_plot(plts[['module_comparisons-module_sizes_diffs-barplot']],'module_comparisons-module_sizes_diffs-barplot','.pdf',figs_dir, width=12, height=12)
     save_plot(plts[['module_comparisons-module_sizes_diffs-strip']],'module_comparisons-module_sizes_diffs-strip','.pdf',figs_dir, width=12, height=12)
     save_plot(plts[['module_comparisons-module_sizes_vs_jaccard']],'module_comparisons-module_sizes_vs_jaccard','.pdf',figs_dir, width=12, height=12)
     save_plot(plts[['module_comparisons-low_jaccard']],'module_comparisons-low_jaccard','.pdf',figs_dir, width=12, height=12)
-}
-
-
-save_figdata = function(figdata, dir){
-    lapply(names(figdata), function(x){
-        filename = file.path(dir,'figdata',paste0(x,'.xlsx'))
-        dir.create(dirname(filename), recursive=TRUE)
-        write_xlsx(figdata[[x]], filename)
-    })
 }
 
 
@@ -555,7 +573,7 @@ main = function(){
     dir.create(figs_dir, recursive = TRUE)
     
     # load data
-    # gene_annotation = read_tsv(gene_annotation_file) %>% dplyr::rename(b_number=`b-number`)
+    mapping_eval = read_tsv(mapping_eval_file)
     performance_evaluation = read_tsv(performance_evaluation_file) %>% 
         filter(`function` != 'evaluate_performance') %>%
         group_by(algorithm) %>% 
@@ -595,10 +613,11 @@ main = function(){
     # analysis
     module_comparisons = make_module_comparisons(S_info)
     figdata = make_figdata(performance_evaluation, clustering_evaluation, 
-                           S_info, A_info, module_comparisons)
+                           S_info, A_info, module_comparisons, mapping_eval)
     
     # visualize
-    plts = make_plots(performance_evaluation, S_info, module_comparisons)
+    plts = make_plots(performance_evaluation, S_info, 
+                      module_comparisons, mapping_eval)
     
     # save
     save_plots(plts, figs_dir)
