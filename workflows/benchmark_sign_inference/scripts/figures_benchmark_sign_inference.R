@@ -25,10 +25,6 @@ require(writexl)
 require(ggnewscale)
 require(extrafont)
 
-require(org.EcK12.eg.db)
-require(clusterProfiler)
-require(enrichplot)
-
 loadfonts()
 
 ROOT = here::here()
@@ -228,16 +224,6 @@ define_module = function(x, cutoff=0.01){
 }
 
 
-run_enrichments = function(genes_oi){
-    print('Running enrichments...')
-    symbols = gene_annotation %>% 
-        filter(b_number %in% genes_oi) %>% 
-        pull(gene_name)
-    result = enrichGO(symbols, OrgDb = ORGDB, keyType='SYMBOL', ont='BP')
-    return(result)
-}
-
-
 make_module_comparisons = function(S_info){
     # get modules from source matrix
     modules = S_info %>%
@@ -313,42 +299,6 @@ make_module_comparisons = function(S_info){
             by = 'robustica_pca'
         )   
 
-#     # enrichments in modules with low jaccard
-#     enrichments = list()
-#     ## icasso
-#     components_oi = mapping %>% 
-#         filter(!is.na(icasso)) %>%
-#         filter(jaccard < THRESH_JACCARD | is.na(jaccard)) %>%
-#         pull(icasso)
-#     genes_oi = modules %>% 
-#         filter(algorithm=='icasso' & component%in%components_oi & in_module)
-#     genes_oi = split(genes_oi$gene, genes_oi$component)
-    
-#     enrichments[['icasso']] = sapply(genes_oi, simplify=FALSE, function(x){run_enrichments(x)})
-    
-#     ## robustica
-#     components_oi = mapping %>% 
-#         filter(!is.na(robustica_pca)) %>%
-#         filter(jaccard < THRESH_JACCARD | is.na(jaccard)) %>%
-#         pull(robustica_pca)
-#     genes_oi = modules %>% 
-#         filter(algorithm=='robustica_pca' & component%in%components_oi & in_module)
-#     genes_oi = split(genes_oi$gene, genes_oi$component)
-    
-#     enrichments[['robustica_pca']] = sapply(genes_oi, simplify=FALSE, function(x){run_enrichments(x)})
-    
-#     mapping = mapping %>% 
-#         left_join(
-#             sapply(enrichments[['icasso']], nrow) %>% 
-#             enframe(name = 'icasso', value = 'icasso_enriched'),
-#             by = 'icasso'
-#         )%>% 
-#         left_join(
-#             sapply(enrichments[['robustica_pca']], nrow) %>% 
-#             enframe(name = 'robustica_pca', value = 'robustica_pca_enriched'),
-#             by = 'robustica_pca'
-#         )
-    
     module_comparisons = list(
         'sim' = sim,
         'mapping' = mapping
