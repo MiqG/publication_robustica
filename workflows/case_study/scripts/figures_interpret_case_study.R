@@ -30,6 +30,9 @@ require(survminer)
 require(grid)
 require(fdrtool)
 require(writexl)
+require(extrafont)
+
+loadfonts()
 
 require(clusterProfiler)
 require(org.Hs.eg.db)
@@ -49,19 +52,19 @@ THRESH_FDR = 0.01
 
 # Development
 # -----------
-PREP_DIR = file.path(ROOT,'data','prep')
-RESULTS_DIR = file.path(ROOT,'results','case_study')
+# PREP_DIR = file.path(ROOT,'data','prep')
+# RESULTS_DIR = file.path(ROOT,'results','case_study')
 
-S_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','S.tsv.gz')
-A_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','A.tsv.gz')
-stats_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','stats.tsv.gz')
+# S_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','S.tsv.gz')
+# A_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','A.tsv.gz')
+# stats_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','stats.tsv.gz')
 
-genexpr_file = file.path(PREP_DIR,'genexpr','LGG.tsv.gz')
-snv_file = file.path(PREP_DIR,'snv','LGG.tsv.gz')
-metadata_file = file.path(PREP_DIR,'metadata','LGG.tsv')
-figs_dir = file.path(RESULTS_DIR,'figures','LGG')
+# genexpr_file = file.path(PREP_DIR,'genexpr','LGG.tsv.gz')
+# snv_file = file.path(PREP_DIR,'snv','LGG.tsv.gz')
+# metadata_file = file.path(PREP_DIR,'metadata','LGG.tsv')
+# figs_dir = file.path(RESULTS_DIR,'figures','LGG')
 
-sample_indices_file = file.path(PREP_DIR,'sample_indices','LGG.tsv')
+# sample_indices_file = file.path(PREP_DIR,'sample_indices','LGG.tsv')
 
 ##### FUNCTIONS #####
 define_module = function(x, cutoff=0.01){
@@ -320,12 +323,18 @@ make_figdata = function(S, A, metadata, sample_indices, enrichments){
 
 
 save_plot = function(plt, plt_name, extension='.pdf', 
-                      directory='', dpi=350, 
+                      directory='', dpi=350, change_params=TRUE,
                       width = par("din")[1], height = par("din")[2], units='cm'){
-        filename = file.path(directory,paste0(plt_name,extension))
-        ggsave(filename, 
-               plt, 
-               width=width, height=height, dpi=dpi, limitsize=FALSE, units=units)
+    if (change_params){
+        plt = ggpar(plt, font.title=11, font.subtitle=10, font.caption=10, 
+                    font.x=10, font.y=10, font.legend=10,
+                    font.tickslab=8, font.family='Arial')
+    }
+    
+    filename = file.path(directory,paste0(plt_name,extension))
+    ggsave(filename, 
+           plt, 
+           width=width, height=height, dpi=dpi, limitsize=FALSE, units=units)
 }
 
 
@@ -333,12 +342,12 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['weights_vs_mitotic_index']], 'weights_vs_mitotic_index', '.png', figs_dir, width=12, height=12)
     
     save_plot(plts[['weights_vs_surv_time']], 'weights_vs_surv_time', '.png', figs_dir, width=12, height=12)
-    save_plot(print(plts[['weights_vs_surv_km']]), 'weights_vs_surv_km', '.pdf', figs_dir, width=12, height=12)
+    save_plot(print(plts[['weights_vs_surv_km']]), 'weights_vs_surv_km', '.pdf', figs_dir, width=12, height=12, change_params=FALSE)
     
     save_plot(plts[['weights_vs_mutation']], 'weights_vs_mutation', '.pdf', figs_dir, width=12, height=12)
     
     save_plot(plts[['weights_genes']], 'weights_genes', '.pdf', figs_dir, width=12, height=12)
-    save_plot(plts[['weights_vs_genexpr']], 'weights_vs_genexpr', '.pdf', figs_dir, width=70, height=15)
+    save_plot(plts[['weights_vs_genexpr']], 'weights_vs_genexpr', '.pdf', figs_dir, width=70, height=15, change_params=FALSE)
     
     save_plot(plts[['weights_vs_enrichment_dotplot-GO_BP']], 'weights_vs_enrichment_dotplot-GO_BP', '.pdf', figs_dir, width=20, height=20)
     save_plot(plts[['weights_vs_enrichment_cnetplot-GO_BP']], 'weights_vs_enrichment_cnetplot-GO_BP', '.pdf', figs_dir, width=20, height=20)

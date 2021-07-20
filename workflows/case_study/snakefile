@@ -50,7 +50,7 @@ rule cluster_ica_runs:
         """
         
         
-rule figures_interpret_ica:
+rule figures_interpret_case_study:
     input:
         S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','S.tsv.gz'),
         A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','A.tsv.gz'),
@@ -58,19 +58,19 @@ rule figures_interpret_ica:
         snv = os.path.join(PREP_DIR,'snv','{dataset}.tsv.gz'),
         metadata = os.path.join(PREP_DIR,'metadata','{dataset}.tsv'),
         stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','stats.tsv.gz'),
-        sample_properties = os.path.join(PREP_DIR,'sample_indices','{dataset}.tsv')
+        sample_indices = os.path.join(PREP_DIR,'sample_indices','{dataset}.tsv')
     output:
         directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
     shell:
         """
-        Rscript scripts/figures_interpret_ica.R \
+        Rscript scripts/figures_interpret_case_study.R \
                     --S_file={input.S} \
                     --A_file={input.A} \
                     --genexpr_file={input.genexpr} \
                     --snv_file={input.snv} \
                     --metadata_file={input.metadata} \
                     --stats_file={input.stats} \
-                    --sample_properties_file={input.sample_properties} \
+                    --sample_indices_file={input.sample_indices} \
                     --figs_dir={output}
         """
         

@@ -105,10 +105,11 @@ formatted = {
     'A_means' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-A.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
     'A_stds' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-A_std.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS]
 }
-rule figures_benchmark_performance:
+rule figures_benchmark_sign_inference:
     input:
         performance_evaluation = os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),
         clustering_info = os.path.join(RESULTS_DIR,'files','{dataset}','clustering_info.tsv.gz'),
+        mapping_eval = os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz'),
         S_means = formatted['S_means'],
         S_stds = formatted['S_stds'],
         A_means = formatted['A_means'],
@@ -129,6 +130,7 @@ rule figures_benchmark_performance:
                     --S_stds_files={params.S_stds} \
                     --A_means_files={params.A_means} \
                     --A_stds_files={params.A_stds} \
+                    --mapping_eval_file={input.mapping_eval} \
                     --figs_dir={output}
         """
         

@@ -23,10 +23,13 @@ require(fdrtool)
 require(latex2exp)
 require(writexl)
 require(ggnewscale)
+require(extrafont)
 
 require(org.EcK12.eg.db)
 require(clusterProfiler)
 require(enrichplot)
+
+loadfonts()
 
 ROOT = here::here()
 source(file.path(ROOT,'src','R','utils.R'))
@@ -520,11 +523,18 @@ save_figdata = function(figdata, dir){
 
 
 save_plot = function(plt, plt_name, extension='.pdf', 
-                      directory='', dpi=350, 
+                      directory='', dpi=350, change_params=TRUE,
                       width = par("din")[1], height = par("din")[2], units='cm'){
-        filename = file.path(directory,paste0(plt_name,extension))
-        ggsave(filename, plt, width=width, height=height, 
-               dpi=dpi, limitsize=FALSE, units=units)
+    
+    if (change_params){
+        plt = ggpar(plt, font.title=11, font.subtitle=10, font.caption=10, 
+                    font.x=10, font.y=10, font.legend=10,
+                    font.tickslab=8, font.family='Arial')
+    }
+    
+    filename = file.path(directory,paste0(plt_name,extension))
+    ggsave(filename, plt, width=width, height=height, 
+           dpi=dpi, limitsize=FALSE, units=units)
 }
 
 
@@ -546,7 +556,7 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['clustering-weightS_means_vs_std-scatters']],'clustering-weightS_means_vs_std-scatters','.png',figs_dir, width=20,height=20)
     
     # module comparisons
-    save_plot(plts[['module_comparisons-jaccard']],'module_comparisons-jaccard','.png',figs_dir, width=30, height=30)
+    save_plot(plts[['module_comparisons-jaccard']],'module_comparisons-jaccard','.png',figs_dir, width=30, height=30, change_params=FALSE)
     
     save_plot(plts[['mapping_eval-errorplot']],'mapping_eval-errorplot','.pdf', figs_dir, width=12, height=12)
     
@@ -564,6 +574,7 @@ main = function(){
 
     performance_evaluation_file = args$performance_evaluation_file
     clustering_info_file = args$clustering_info_file
+    mapping_eval_file = args$mapping_eval_file
     S_stds_files = unlist(strsplit(args$S_stds_files,','))
     S_means_files = unlist(strsplit(args$S_means_files,','))
     A_means_files = unlist(strsplit(args$A_means_files,','))

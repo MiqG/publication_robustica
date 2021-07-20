@@ -19,6 +19,9 @@ require(pheatmap)
 require(reshape2)
 require(ggrepel)
 require(writexl)
+require(extrafont)
+
+loadfonts()
 
 ROOT = here::here()
 source(file.path(ROOT,'src','R','utils.R'))
@@ -158,12 +161,16 @@ save_plot = function(plt, plt_name, extension='.pdf',
                      height = par("din")[2], 
                      device = NULL,
                      units='cm'){
-        filename = file.path(directory,paste0(plt_name,extension))
-        ggsave(filename, 
-               plt, 
-               width=width, height=height, dpi=dpi, 
-               limitsize=FALSE,
-               units=units, device=device)
+
+    plt = ggpar(plt, font.title=11, font.subtitle=10, font.caption=10, 
+                font.x=10, font.y=10, font.legend=10,
+                font.tickslab=8, font.family='Arial')
+    filename = file.path(directory,paste0(plt_name,extension))
+    ggsave(filename, 
+           plt, 
+           width=width, height=height, dpi=dpi, 
+           limitsize=FALSE,
+           units=units, device=device)
 }
 
 
