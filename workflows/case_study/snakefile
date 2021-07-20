@@ -50,7 +50,7 @@ rule cluster_ica_runs:
         """
         
         
-rule figures_interpret_case_study:
+rule figures_case_study:
     input:
         S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','S.tsv.gz'),
         A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','A.tsv.gz'),

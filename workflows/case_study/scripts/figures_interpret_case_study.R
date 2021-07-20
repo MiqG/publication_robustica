@@ -177,7 +177,7 @@ plot_silhouettes = function(stats){
     
     plts[['silhouettes-scatter']] = X %>% 
         ggplot(aes(x=silhouette_euclidean, y=silhouette_pearson)) +
-        geom_text(aes(label=cluster_id)) + 
+        geom_text(aes(label=cluster_id), family="Arial", size=3) + 
         theme_pubr() + 
         geom_abline(intercept = 0, slope = 1, linetype='dashed') +
         labs(x='Euclidean', y='1 - abs(Pearson Corr.)')
@@ -216,7 +216,7 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
     plts[['weights_vs_mitotic_index']] = X %>%
         ggscatter(x='mitotic_index', y='component', alpha=0.5) + 
         labs(x='Mitotic Index', y=sprintf('Weights Component %s',component_oi)) + 
-        stat_cor(method='spearman')
+        stat_cor(method='spearman', family="Arial", size=3)
     
     plts[['weights_vs_surv_time']] = X %>%
         ggscatter(x='OS.time', y='component', palette='Dark2',
@@ -231,13 +231,15 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
             legend.title = "Component Weight",
             pval = TRUE,
             conf.int = TRUE,
-            palette = 'Dark2'
+            palette = 'Dark2',
+            ggtheme = theme_classic2(base_size=10, base_family = "Arial"),
+            font.family = "Arial",
         ) + ggtitle(sprintf('KM from Weights Component %s',component_oi))
     
     plts[['weights_vs_mutation']] = X %>%
         ggviolin(x='is_mut', y='component', 
                  fill='is_mut', color=NA, palette='lancet') +
-        geom_boxplot(width=0.1) +
+        geom_boxplot(width=0.1, outlier.size = 0.1) +
         stat_compare_means(method='wilcox.test') +
         guides(fill=FALSE) +
         labs(x=TeX('\\textit{IDH1}'), y=sprintf('Weights Component %s',component_oi))
@@ -339,21 +341,21 @@ save_plot = function(plt, plt_name, extension='.pdf',
 
 
 save_plots = function(plts, figs_dir){
-    save_plot(plts[['weights_vs_mitotic_index']], 'weights_vs_mitotic_index', '.png', figs_dir, width=12, height=12)
+    save_plot(plts[['weights_vs_mitotic_index']], 'weights_vs_mitotic_index', '.png', figs_dir, width=6, height=6)
     
-    save_plot(plts[['weights_vs_surv_time']], 'weights_vs_surv_time', '.png', figs_dir, width=12, height=12)
-    save_plot(print(plts[['weights_vs_surv_km']]), 'weights_vs_surv_km', '.pdf', figs_dir, width=12, height=12, change_params=FALSE)
+    save_plot(plts[['weights_vs_surv_time']], 'weights_vs_surv_time', '.png', figs_dir, width=6, height=6)
+    save_plot(print(plts[['weights_vs_surv_km']]), 'weights_vs_surv_km', '.pdf', figs_dir, width=6, height=6, change_params=FALSE)
     
-    save_plot(plts[['weights_vs_mutation']], 'weights_vs_mutation', '.pdf', figs_dir, width=12, height=12)
+    save_plot(plts[['weights_vs_mutation']], 'weights_vs_mutation', '.pdf', figs_dir, width=6, height=6)
     
-    save_plot(plts[['weights_genes']], 'weights_genes', '.pdf', figs_dir, width=12, height=12)
+    save_plot(plts[['weights_genes']], 'weights_genes', '.pdf', figs_dir, width=6, height=6)
     save_plot(plts[['weights_vs_genexpr']], 'weights_vs_genexpr', '.pdf', figs_dir, width=70, height=15, change_params=FALSE)
     
-    save_plot(plts[['weights_vs_enrichment_dotplot-GO_BP']], 'weights_vs_enrichment_dotplot-GO_BP', '.pdf', figs_dir, width=20, height=20)
-    save_plot(plts[['weights_vs_enrichment_cnetplot-GO_BP']], 'weights_vs_enrichment_cnetplot-GO_BP', '.pdf', figs_dir, width=20, height=20)
+    save_plot(plts[['weights_vs_enrichment_dotplot-GO_BP']], 'weights_vs_enrichment_dotplot-GO_BP', '.pdf', figs_dir, width=12, height=12)
+    save_plot(plts[['weights_vs_enrichment_cnetplot-GO_BP']], 'weights_vs_enrichment_cnetplot-GO_BP', '.pdf', figs_dir, width=12, height=12)
     
-    save_plot(plts[['weights_vs_enrichment_dotplot-MSigDB_Hallmarks']], 'weights_vs_enrichment_dotplot-MSigDB_Hallmarks', '.pdf', figs_dir, width=20, height=20)
-    save_plot(plts[['weights_vs_enrichment_cnetplot-MSigDB_Hallmarks']], 'weights_vs_enrichment_cnetplot-MSigDB_Hallmarks', '.pdf', figs_dir, width=20, height=20)
+    save_plot(plts[['weights_vs_enrichment_dotplot-MSigDB_Hallmarks']], 'weights_vs_enrichment_dotplot-MSigDB_Hallmarks', '.pdf', figs_dir, width=12, height=12)
+    save_plot(plts[['weights_vs_enrichment_cnetplot-MSigDB_Hallmarks']], 'weights_vs_enrichment_cnetplot-MSigDB_Hallmarks', '.pdf', figs_dir, width=12, height=12)
     
     save_plot(plts[['silhouettes-scatter-unfiltered']], 'silhouettes-scatter-unfiltered', '.pdf', figs_dir, width=12, height=12)
 }
