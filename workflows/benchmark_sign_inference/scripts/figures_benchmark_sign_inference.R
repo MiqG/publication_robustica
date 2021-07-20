@@ -32,7 +32,6 @@ source(file.path(ROOT,'src','R','utils.R'))
 
 # variables
 ALGORITHMS = c('icasso','robustica_nosign','robustica','robustica_pca')
-ORGDB = org.EcK12.eg.db
 THRESH_JACCARD = 0.9
 
 # Development
@@ -144,7 +143,7 @@ plot_performance_profile = function(df){
     facet_wrap(~algorithm, scales='free_x', ncol=1) + 
     guides(color=guide_legend(ncol=1)) + 
     labs(x='Time (s)', y='Memory (MiB)', color='Function') + 
-    theme_pubr(border = TRUE) 
+    theme_pubr(border = TRUE, legend='bottom') 
     
     return(plts)
 }
@@ -162,16 +161,14 @@ plot_clustering_evaluation = function(df){
                  fill='algorithm', color=NA, palette='Paired') + 
         guides(fill=FALSE) +
         geom_boxplot(width=0.1, outlier.size = 0.1) +
-        labs(x='Algorithm', y='Silhouette Score') +
-        theme_pubr(x.text.angle = 70)
+        labs(x='Algorithm', y='Silhouette Score')
      
     plts[['clustering-S_stds-violins']] = X %>% 
         ggviolin(x='algorithm', y='mean_std_cluster', trim = TRUE,
                  fill='algorithm', color=NA, palette='Paired') + 
         geom_boxplot(width=0.1, outlier.size = 0.1) +
         guides(fill=FALSE) +
-        labs(x='Algorithm', y='Cluster Mean Std.') +
-        theme_pubr(x.text.angle = 70)
+        labs(x='Algorithm', y='Cluster Mean Std.')
     
      plts[['clustering-silhouettes_vs_stds-scatter']] = X %>%
         ggplot(aes(x=silhouette_euclidean, y=mean_std_cluster)) +
@@ -193,7 +190,8 @@ plot_weights_precision = function(S_info){
         group_by(algorithm) %>%
         arrange(correlation) %>% 
         filter(row_number()==1 | row_number()==n()) %>%
-        left_join(S_info, by=c('algorithm','component'))
+        left_join(S_info, by=c('algorithm','component')) %>%
+        arrange(correlation)
     
 
     plts = list()
@@ -209,9 +207,10 @@ plot_weights_precision = function(S_info){
         ggscatter(x='weight_mean', y='weight_std', 
                   size=0.5, alpha=0.5) +
         facet_wrap(~algorithm+component, ncol=2) +
-        geom_text(aes(x=-0.05,y=0.1,label=sprintf('R=%s',round(correlation,2))), 
-                  X %>% distinct(algorithm, component, correlation)) +
-        theme_pubr(border = TRUE)
+#         geom_text(aes(x=-0.05,y=0.1,label=sprintf('R=%s',round(correlation,2))), 
+#                   X %>% distinct(algorithm, component, correlation)) +
+        theme_pubr(border = TRUE) + 
+        labs(x='Weight Mean', y='Weight Std.')
     
     return(plts)
 }
@@ -310,12 +309,14 @@ make_module_comparisons = function(S_info){
 plot_module_comparisons = function(module_comparisons){
     # unlist data
     sim = module_comparisons[['sim']]
-    mapping = module_comparisons[['mapping']]
+    mapping = module_comparisons[['mapping']] %>%
+        mutate(is_low=jaccard<THRESH_JACCARD)
+
     
     # make plots
     plts = list()
     
-    plts[['module_comparisons-jaccard']] = sim %>% pheatmap(silent=TRUE, cluster_cols = FALSE, cluster_rows=FALSE, fontsize = 6)
+    plts[['module_comparisons-jaccard']] = sim %>% pheatmap(silent=TRUE, cluster_cols = FALSE, cluster_rows=FALSE, fontsize = 5)
     
     plts[['module_comparisons-module_sizes-scatter']] = mapping %>% 
         arrange(jaccard) %>%
@@ -329,15 +330,17 @@ plot_module_comparisons = function(module_comparisons){
         geom_text_repel(
             aes(label=value, color=name), 
             mapping %>% 
-                filter(abs_module_size_diff > 8) %>% 
+                filter(abs_module_size_diff > 15) %>% 
                 pivot_longer(cols = c(icasso,robustica_pca)),
-            box.padding = 0.7
+            box.padding = 0.7,
+            family="Arial",
+            size=2
         ) +
         scale_color_manual("Algorithm", values=c('#A6CEE3','#33A02C')) +
         labs(x='Module Size Icasso', 
              y='Module Size robustica', 
              color='Jaccard Sim.',
-             title=TeX(sprintf('Mapped gene modules between \\textit{Icasso} and \\textit{robustica} | n=%s',sum(mapping[['mapped_icasso']]))))
+             title=TeX(sprintf('Mapped gene modules between \\textit{Icasso} and \\textit{robustica} | n=%s',sum(!is.na(mapping[['icasso']])))))
     
     
     plts[['module_comparisons-module_sizes_diffs-hist']] = mapping %>%
@@ -360,13 +363,16 @@ plot_module_comparisons = function(module_comparisons){
         guides(color=FALSE)
     
     plts[['module_comparisons-module_sizes_vs_jaccard']] = mapping %>% 
-        ggscatter(x='robustica_pca_module_size', y='jaccard', add='reg.line', 
-                  add.params=list(linetype='dashed'), conf.int = TRUE, 
-                  size=1, alpha=0.5) + 
-        stat_cor(method='spearman', label.x = 20)
+        drop_na(jaccard, is_low) %>%
+        ggscatter(x='robustica_pca_module_size', y='jaccard', 
+                  color='is_low', palette='jco', add='reg.line', 
+                  add.params=list(linetype='dashed',color='black'), 
+                  conf.int = TRUE, size=1, alpha=0.5) + 
+        stat_cor(method='spearman', label.x = 20) +
+        ylim(NA,1)+
+        labs(y='Jaccard', color=sprintf('Jaccard < %s',THRESH_JACCARD))
     
     plts[['module_comparisons-low_jaccard']] = mapping %>% 
-        mutate(is_low=jaccard<THRESH_JACCARD) %>% 
         count(is_low) %>%
         drop_na() %>%
         ggbarplot(x='is_low', y='n', fill='is_low', 
@@ -382,7 +388,7 @@ plot_mapping_eval = function(mapping_eval){
     plts = list()
     plts[['mapping_eval-errorplot']] = mapping_eval %>% 
         filter(algorithm %in% c('icasso','robustica_pca')) %>% 
-        ggline(x='runs', y='jaccard', add='mean_se', 
+        ggline(x='runs', y='jaccard', add='mean_se', point.size=0.1,
                numeric.x.axis = TRUE, palette=get_palette('Paired',4)[c(1,4)],
                color='algorithm', linetype='dashed')
     
@@ -477,8 +483,8 @@ save_plot = function(plt, plt_name, extension='.pdf',
                       width = par("din")[1], height = par("din")[2], units='cm'){
     
     if (change_params){
-        plt = ggpar(plt, font.title=11, font.subtitle=10, font.caption=10, 
-                    font.x=10, font.y=10, font.legend=10,
+        plt = ggpar(plt, font.title=10, font.subtitle=9, font.caption=9, 
+                    font.x=8, font.y=8, font.legend=8,
                     font.tickslab=8, font.family='Arial')
     }
     
@@ -496,26 +502,26 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['corr_vs_euc-table']],'corr_vs_euc-table','.pdf',figs_dir, width=12,height=12)
     
     # memory time profiles
-    save_plot(plts[['mem_time-scatter']],'mem_time-scatter','.png',figs_dir, width=12,height=20)
+    save_plot(plts[['mem_time-scatter']],'mem_time-scatter','.png',figs_dir, width=6, height=15)
     
     # clustering
-    save_plot(plts[['clustering-silhouettes-violins']],'clustering-silhouettes-violins','.pdf',figs_dir, width=12,height=12)
-    save_plot(plts[['clustering-S_stds-violins']],'clustering-S_stds-violins','.pdf',figs_dir, width=12,height=12)
+    save_plot(plts[['clustering-silhouettes-violins']],'clustering-silhouettes-violins','.pdf',figs_dir, width=4,height=4)
+    save_plot(plts[['clustering-S_stds-violins']],'clustering-S_stds-violins','.pdf',figs_dir, width=4,height=4)
     save_plot(plts[['clustering-silhouettes_vs_stds-scatter']],'clustering-silhouettes_vs_stds-scatter','.png',figs_dir, width=20,height=20)
-    save_plot(plts[['clustering-weightS_means_vs_std-violins']],'clustering-weightS_means_vs_std-violins','.pdf',figs_dir, width=12,height=12)
-    save_plot(plts[['clustering-weightS_means_vs_std-scatters']],'clustering-weightS_means_vs_std-scatters','.png',figs_dir, width=20,height=20)
+    save_plot(plts[['clustering-weightS_means_vs_std-violins']],'clustering-weightS_means_vs_std-violins','.pdf',figs_dir, width=4,height=4)
+    save_plot(plts[['clustering-weightS_means_vs_std-scatters']],'clustering-weightS_means_vs_std-scatters','.png',figs_dir, width=12,height=12)
     
     # module comparisons
-    save_plot(plts[['module_comparisons-jaccard']],'module_comparisons-jaccard','.png',figs_dir, width=30, height=30, change_params=FALSE)
+    save_plot(plts[['module_comparisons-jaccard']],'module_comparisons-jaccard','.png',figs_dir, width=12, height=12, change_params=FALSE)
     
-    save_plot(plts[['mapping_eval-errorplot']],'mapping_eval-errorplot','.pdf', figs_dir, width=12, height=12)
+    save_plot(plts[['mapping_eval-errorplot']],'mapping_eval-errorplot','.pdf', figs_dir, width=6, height=6)
     
-    save_plot(plts[['module_comparisons-module_sizes-scatter']] + theme(aspect.ratio = 1),'module_comparisons-module_sizes-scatter','.pdf',figs_dir, width=15, height=15)
-    save_plot(plts[['module_comparisons-module_sizes_diffs-hist']],'module_comparisons-module_sizes_diffs-hist','.pdf',figs_dir, width=12, height=12)
-    save_plot(plts[['module_comparisons-module_sizes_diffs-barplot']],'module_comparisons-module_sizes_diffs-barplot','.pdf',figs_dir, width=12, height=12)
-    save_plot(plts[['module_comparisons-module_sizes_diffs-strip']],'module_comparisons-module_sizes_diffs-strip','.pdf',figs_dir, width=12, height=12)
-    save_plot(plts[['module_comparisons-module_sizes_vs_jaccard']],'module_comparisons-module_sizes_vs_jaccard','.pdf',figs_dir, width=12, height=12)
-    save_plot(plts[['module_comparisons-low_jaccard']],'module_comparisons-low_jaccard','.pdf',figs_dir, width=12, height=12)
+    save_plot(plts[['module_comparisons-module_sizes-scatter']] + theme(aspect.ratio = 1),'module_comparisons-module_sizes-scatter','.pdf',figs_dir, width=6, height=8)
+    save_plot(plts[['module_comparisons-module_sizes_diffs-hist']],'module_comparisons-module_sizes_diffs-hist','.pdf',figs_dir, width=8, height=8)
+    save_plot(plts[['module_comparisons-module_sizes_diffs-barplot']],'module_comparisons-module_sizes_diffs-barplot','.pdf',figs_dir, width=8, height=8)
+    save_plot(plts[['module_comparisons-module_sizes_diffs-strip']],'module_comparisons-module_sizes_diffs-strip','.pdf',figs_dir, width=6, height=6)
+    save_plot(plts[['module_comparisons-module_sizes_vs_jaccard']],'module_comparisons-module_sizes_vs_jaccard','.pdf',figs_dir, width=6, height=6)
+    save_plot(plts[['module_comparisons-low_jaccard']],'module_comparisons-low_jaccard','.pdf',figs_dir, width=6, height=6)
 }
 
 
