@@ -45,9 +45,6 @@ source(file.path(ROOT,'src','R','utils.R'))
 GENE_OI = 'IDH1'
 EFFECT_OI = c('Missense_Mutation','Nonsense_Mutation')
 
-MSIGDB_HALLMARKS = file.path(ROOT,'data','raw','MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs','h.all.v7.4.symbols.gmt')
-MSIGDB_IMMUNE = file.path(ROOT,'data','raw','MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs','c7.immunesigdb.v7.4.symbols.gmt')
-
 THRESH_FDR = 0.01
 
 # Development
@@ -65,6 +62,8 @@ THRESH_FDR = 0.01
 # figs_dir = file.path(RESULTS_DIR,'figures','LGG')
 
 # sample_indices_file = file.path(PREP_DIR,'sample_indices','LGG.tsv')
+# msigdb_dir = file.path(ROOT,'data','raw','MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs')
+
 
 ##### FUNCTIONS #####
 define_module = function(x, cutoff=0.01){
@@ -135,7 +134,7 @@ analyze_components = function(A, metadata){
         assoc = result$coefficients['weight','z']
         return(assoc)
     })
-    survs = data.frame(coxph = survs)
+    survs = data.frame(coxph_zscore = survs)
     
     # which components have different weights in samples with and without mutation?
     samples = rownames(metadata)
@@ -240,7 +239,7 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
         ggviolin(x='is_mut', y='component', 
                  fill='is_mut', color=NA, palette='lancet') +
         geom_boxplot(width=0.1, outlier.size = 0.1) +
-        stat_compare_means(method='wilcox.test') +
+        stat_compare_means(method='wilcox.test', family="Arial", size=3) +
         guides(fill=FALSE) +
         labs(x=TeX('\\textit{IDH1}'), y=sprintf('Weights Component %s',component_oi))
     
@@ -303,7 +302,7 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
 }
 
 
-make_figdata = function(S, A, metadata, sample_indices, enrichments){
+make_figdata = function(S, A, metadata, sample_indices, enrichments, results_analysis){
     # make gene modules
     is_selected = S %>% mutate_at(vars(-('sample')), define_module)
     modules = S %>% dplyr::rename(gene=sample)
@@ -315,6 +314,9 @@ make_figdata = function(S, A, metadata, sample_indices, enrichments){
             'mixing_matrix_A' = A,
             'sample_metadata' = metadata,
             'sample_indices' = sample_indices,
+            'mutation_association' = results_analysis[['mutation']],
+            'survival_association' = results_analysis[['survival']] %>% rownames_to_column('component'),
+            'corr_sample_indices' = results_analysis[['sample_indices']] %>% t() %>% as.data.frame() %>% rownames_to_column('component'),
             'gene_modules' = modules,
             'enrichment-GO_BP' = as.data.frame(enrichments[['GO_BP']]),
             'enrichment-MSigDB_Hallmarks' = as.data.frame(enrichments[['MSigDB_Hallmarks']])
@@ -380,15 +382,13 @@ main = function(){
     metadata_file = args$metadata_file
     stats_file = args$stats_file
     sample_indices_file = args$sample_indices_file
+    msigdb_dir = args$msigdb_dir
     figs_dir = args$figs_dir
     
     dir.create(figs_dir, recursive = TRUE)
 
     # load data
-    msigdb = list(
-        h = read.gmt(MSIGDB_HALLMARKS),
-        c7 = read.gmt(MSIGDB_IMMUNE)
-    )    
+    msigdb = list(h = read.gmt(file.path(msigdb_dir,'h.all.v7.4.symbols.gmt')))    
     
     S = read_tsv(S_file)
     A = read_tsv(A_file)
@@ -420,7 +420,7 @@ main = function(){
     # analysis - 67 stands out
     results = analyze_components(A, metadata)
     comps_correls = sort(abs(results[['sample_indices']]['mitotic_index',]))
-    comps_survs = results[['survival']] %>% arrange(abs(coxph))
+    comps_survs = results[['survival']] %>% arrange(abs(coxph_zscore))
     comps_mitotic_index = results[['mutation']] %>% filter(fdr < 0.05) %>% arrange(abs(med_diff))
     
     # enrichment for component of interest
@@ -437,7 +437,7 @@ main = function(){
     plts[['silhouettes-scatter-unfiltered']] = plt
     
     # make figdata
-    figdata = make_figdata(S, A, metadata, sample_indices, enrichments)
+    figdata = make_figdata(S, A, metadata, sample_indices, enrichments, results)
     
     # save
     save_plots(plts, figs_dir)

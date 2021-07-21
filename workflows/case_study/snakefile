@@ -15,6 +15,7 @@ PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','case_study')
 
 DATASETS = ['LGG']
+MSIGDB_DIR = os.path.join(RAW_DIR,'MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs')
 
 ##### RULES #####
 rule all:
@@ -58,7 +59,8 @@ rule figures_case_study:
         snv = os.path.join(PREP_DIR,'snv','{dataset}.tsv.gz'),
         metadata = os.path.join(PREP_DIR,'metadata','{dataset}.tsv'),
         stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','stats.tsv.gz'),
-        sample_indices = os.path.join(PREP_DIR,'sample_indices','{dataset}.tsv')
+        sample_indices = os.path.join(PREP_DIR,'sample_indices','{dataset}.tsv'),
+        msigdb_dir = directory(MSIGDB_DIR)
     output:
         directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
     shell:
@@ -71,6 +73,7 @@ rule figures_case_study:
                     --metadata_file={input.metadata} \
                     --stats_file={input.stats} \
                     --sample_indices_file={input.sample_indices} \
+                    --msigdb_dir={input.msigdb_dir} \
                     --figs_dir={output}
         """
         
