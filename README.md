@@ -53,7 +53,7 @@ After running all workflows (indicated below), the figures used in the manuscrip
     - sruvminer
 
 ## Usage
-This will generate `data` and `results`.
+This will generate the directories `data` and `results`.
 
 ```shell
 bash run_all.sh 4 # number of cores available
