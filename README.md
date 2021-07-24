@@ -1,7 +1,7 @@
 # `robustica`: customizable robust independent component analysis
 
 This is the repository to reproduce the analysis carried out in our manuscript, from the data download to the figures. 
-The article describes how we developed [`robustica`](), a Python package to carry out robust independent component analysis.
+The article describes how we developed [`robustica`](https://github.com/CRG-CNAG/robustica), a Python package to carry out robust independent component analysis.
 
 ## Overview
 <p align="center">
