@@ -16,15 +16,16 @@ RESULTS_DIR = os.path.join(ROOT,'results','case_study')
 
 DATASETS = ['LGG']
 MSIGDB_DIR = os.path.join(RAW_DIR,'MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs')
+ALGORITHMS = ['icasso','robustica_pca']
 
 ##### RULES #####
 rule all:
     input:
         # cluster ICA runs
-        expand(os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','S.tsv.gz'), dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','S.tsv.gz'), algorithm=ALGORITHMS, dataset=DATASETS),
         
         # make figures
-        expand(os.path.join(RESULTS_DIR,'figures','{dataset}'), dataset=DATASETS)
+        #expand(os.path.join(RESULTS_DIR,'figures','{dataset}'), dataset=DATASETS)
         
         
 rule cluster_ica_runs:
@@ -32,12 +33,13 @@ rule cluster_ica_runs:
         S_all = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
         A_all = os.path.join(PREP_DIR,'ica_runs','{dataset}','A.pickle.gz')
     output:
-        S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','S.tsv.gz'),
-        A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','A.tsv.gz'),
-        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','stats.tsv.gz')
+        S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','S.tsv.gz'),
+        A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','A.tsv.gz'),
+        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','stats.tsv.gz')
     params:
         n_components = 100,
-        robust_runs = 100
+        robust_runs = 100,
+        algorithm = '{algorithm}'
     shell:
         """
         python scripts/cluster_ica_runs.py \
@@ -47,18 +49,19 @@ rule cluster_ica_runs:
                     --A_file={output.A} \
                     --stats_file={output.stats} \
                     --n_components={params.n_components} \
-                    --robust_runs={params.robust_runs}
+                    --robust_runs={params.robust_runs} \
+                    --algorithm={params.algorithm}
         """
         
         
 rule figures_case_study:
     input:
-        S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','S.tsv.gz'),
-        A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','A.tsv.gz'),
+        S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','S.tsv.gz'),
+        A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','A.tsv.gz'),
         genexpr = os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz'),
         snv = os.path.join(PREP_DIR,'snv','{dataset}.tsv.gz'),
         metadata = os.path.join(PREP_DIR,'metadata','{dataset}.tsv'),
-        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','stats.tsv.gz'),
+        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','stats.tsv.gz'),
         sample_indices = os.path.join(PREP_DIR,'sample_indices','{dataset}.tsv'),
         msigdb_dir = directory(MSIGDB_DIR)
     output:

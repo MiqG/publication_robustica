@@ -14,15 +14,29 @@ import robustica
 # variables
 SAVE_PARAMS = {'sep':'\t', 'compression':'gzip', 'index':False}
 
+ALGORITHMS = {
+    "icasso": {
+        "robust_infer_signs": False,
+        "robust_dimreduce": False,
+        "robust_kws": {"n_clusters": np.nan},
+    },
+    "robustica_pca": {
+        "robust_infer_signs": True,
+        "robust_dimreduce": True,
+        "robust_kws": {"affinity": "euclidean", "linkage": "average"},
+    },
+}
+
+
 ##### FUNCTIONS #####
-def cluster_ica_runs(S_all, A_all, n_components, robust_runs):
+def cluster_ica_runs(S_all, A_all, n_components, robust_runs, algorithm):
     # cluster
+    ALGORITHMS['icasso']['robust_kws']['n_clusters'] = n_components
+    
     rica = robustica.RobustICA(
         n_components = n_components, 
         robust_runs = robust_runs,
-        robust_kws = {"affinity": "euclidean", "linkage": "average"},
-        robust_infer_signs = True,
-        robust_dimreduce = True
+        **ALGORITHMS[algorithm]
     )
     S, A, S_std, A_std, clustering_stats, signs, orientation = rica._compute_robust_components(S_all.values, A_all.values) 
 
@@ -54,6 +68,7 @@ def parse_args():
     parser.add_argument("--stats_file", type=str)
     parser.add_argument("--n_components", type=int)
     parser.add_argument("--robust_runs", type=int)
+    parser.add_argument("--algorithm", type=str)
 
     args = parser.parse_args()
 
@@ -69,12 +84,15 @@ def main():
     stats_file = args.stats_file
     n_components = args.n_components
     robust_runs = args.robust_runs
+    algorithm = args.algorithm
         
     # load data
     S_all = pd.read_pickle(S_all_file)
     A_all = pd.read_pickle(A_all_file)
-
-    S, A, stats = cluster_ica_runs(S_all, A_all, n_components, robust_runs)
+    
+    S, A, stats = cluster_ica_runs(
+        S_all, A_all, n_components, robust_runs, algorithm
+    )
     
     # save
     S.to_csv(S_file, **SAVE_PARAMS)
