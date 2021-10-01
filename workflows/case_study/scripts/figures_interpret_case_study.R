@@ -44,28 +44,49 @@ source(file.path(ROOT,'src','R','utils.R'))
 # variable
 GENE_OI = 'IDH1'
 EFFECT_OI = c('Missense_Mutation','Nonsense_Mutation')
-
 THRESH_FDR = 0.01
 
 # Development
 # -----------
 # PREP_DIR = file.path(ROOT,'data','prep')
-# RESULTS_DIR = file.path(ROOT,'results','case_study')
+# RESULTS_DIR = file.path(ROOT,'results','case_study','files','cluster_iterations','LGG')
+# algorithms = c('icasso','robustica_pca')
 
-# S_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','S.tsv.gz')
-# A_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','A.tsv.gz')
-# stats_file = file.path(RESULTS_DIR,'files','cluster_iterations','LGG','stats.tsv.gz')
+# S_files = file.path(RESULTS_DIR,algorithms,'S.tsv.gz')
+# A_files = file.path(RESULTS_DIR,algorithms,'A.tsv.gz')
+# stats_files = file.path(RESULTS_DIR,algorithms,'stats.tsv.gz')
 
 # genexpr_file = file.path(PREP_DIR,'genexpr','LGG.tsv.gz')
 # snv_file = file.path(PREP_DIR,'snv','LGG.tsv.gz')
 # metadata_file = file.path(PREP_DIR,'metadata','LGG.tsv')
-# figs_dir = file.path(RESULTS_DIR,'figures','LGG')
+# figs_dir = file.path(ROOT,'results','case_study','figures','LGG')
 
 # sample_indices_file = file.path(PREP_DIR,'sample_indices','LGG.tsv')
 # msigdb_dir = file.path(ROOT,'data','raw','MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs')
 
 
 ##### FUNCTIONS #####
+load_mats = function(files, rwnms, idvar, valuename){
+    mats = lapply(files, function(file){
+        mat = read_tsv(file)
+        colnames(mat) = gsub(rwnms, idvar, colnames(mat))
+        mat = mat %>%
+            melt(id.vars = idvar, 
+                 variable.name = 'component', 
+                 value.name = valuename) %>% 
+            mutate(algorithm = basename(dirname(file)))
+        return(mat)
+    })
+    mats = do.call(rbind, mats)
+    mats = mats %>% 
+        mutate(
+            component = paste0('comp',component),
+            algorithm = as.factor(algorithm)
+        )
+    return(mats)
+}
+
+
 define_module = function(x, cutoff=0.01){
     fdr = fdrtool(x, plot=FALSE, cutoff.method="fndr", verbose=FALSE)[['qval']]
     x = fdr < cutoff
@@ -288,17 +309,6 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
     
         
     return(plts) 
-    
-    # component 95 correlates well with E2F transcription factors
-    # genexpr %>% filter(grepl('^E2F', sample)) %>% column_to_rownames('sample') %>% t() %>% as.data.frame() %>% rownames_to_column('index') %>% left_join(A %>% dplyr::select(one_of(c('index','95'))), by='index') %>% column_to_rownames('index') %>% cor(method='spearman') %>% pheatmap()
-    
-    # upstream regulator of E2F differentially expressed in IDH mut
-    # genexpr %>% filter(grepl('CDKN1A',sample)) %>% column_to_rownames('sample') %>% t() %>% as.data.frame() %>% rownames_to_column('sampleID') %>% left_join(metadata[,c('sampleID','is_mut')], by='sampleID') %>% ggviolin(x='is_mut', y='CDKN1A') + stat_compare_means(method = 'wilcox.test')
-    
-    # clustering the genes by their gene expression
-    # guilt-by-association
-    # plt = genexpr %>% filter(sample %in% genes_oi) %>% column_to_rownames('sample') %>% t() %>% cor(method='spearman') %>% pheatmap(cutree_cols = 4, cutree_rows = 4)
- 
 }
 
 
@@ -388,10 +398,10 @@ main = function(){
     dir.create(figs_dir, recursive = TRUE)
 
     # load data
-    msigdb = list(h = read.gmt(file.path(msigdb_dir,'h.all.v7.4.symbols.gmt')))    
+    msigdb = list(h = read.gmt(file.path(msigdb_dir,'h.all.v7.4.symbols.gmt')))
     
-    S = read_tsv(S_file)
-    A = read_tsv(A_file)
+    Ss = load_mats(S_files, 'sample', 'gene', 'weight_mean')
+    As = load_mats(A_files, 'index', 'sample', 'weight_mean')
     stats = read_tsv(stats_file)
     genexpr = read_tsv(genexpr_file)
     snv = read_tsv(snv_file)
