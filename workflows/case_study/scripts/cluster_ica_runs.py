@@ -13,7 +13,6 @@ import robustica
 
 # variables
 SAVE_PARAMS = {'sep':'\t', 'compression':'gzip', 'index':False}
-
 ALGORITHMS = {
     "icasso": {
         "robust_infer_signs": False,
@@ -26,9 +25,22 @@ ALGORITHMS = {
         "robust_kws": {"affinity": "euclidean", "linkage": "average"},
     },
 }
-
+RANDOM_SEED = 1234
 
 ##### FUNCTIONS #####
+def load_data(S_all_file, A_all_file, n_genes):
+    S_all = pd.read_pickle(S_all_file)
+    A_all = pd.read_pickle(A_all_file)
+    
+    if n_genes is not None:
+        print('Picking %s genes at random...' % n_genes)
+        np.random.seed(RANDOM_SEED)
+        idx = np.random.randint(0, S_all.shape[0], size=n_genes)
+        S_all = S_all.iloc[idx].copy()
+    
+    return S_all, A_all
+
+
 def cluster_ica_runs(S_all, A_all, n_components, robust_runs, algorithm):
     # cluster
     ALGORITHMS['icasso']['robust_kws']['n_clusters'] = n_components
@@ -55,7 +67,9 @@ def cluster_ica_runs(S_all, A_all, n_components, robust_runs, algorithm):
     S = pd.DataFrame(S, index=S_all.index).reset_index()
     A = pd.DataFrame(A, index=A_all.index).reset_index()
     stats = pd.merge(clustering_stats, evaluation, on='cluster_id')
-
+    stats['n_genes'] = S.shape[0]
+    stats['n_samples'] = A.shape[0]
+    
     return S, A, stats
     
     
@@ -69,6 +83,7 @@ def parse_args():
     parser.add_argument("--n_components", type=int)
     parser.add_argument("--robust_runs", type=int)
     parser.add_argument("--algorithm", type=str)
+    parser.add_argument("--n_genes", type=int, default=None)
 
     args = parser.parse_args()
 
@@ -85,11 +100,12 @@ def main():
     n_components = args.n_components
     robust_runs = args.robust_runs
     algorithm = args.algorithm
-        
-    # load data
-    S_all = pd.read_pickle(S_all_file)
-    A_all = pd.read_pickle(A_all_file)
+    n_genes = args.n_genes
     
+    print('Loading data...')
+    S_all, A_all = load_data(S_all_file, A_all_file, n_genes)
+    
+    print('Clustering ICA runs...')
     S, A, stats = cluster_ica_runs(
         S_all, A_all, n_components, robust_runs, algorithm
     )

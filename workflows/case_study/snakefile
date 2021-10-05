@@ -6,6 +6,7 @@ Study the computed robust independent components.
 """
 
 import os
+import numpy as np
 
 ##### VARIABLES #####
 ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
@@ -17,18 +18,68 @@ RESULTS_DIR = os.path.join(ROOT,'results','case_study')
 DATASETS = ['LGG']
 MSIGDB_DIR = os.path.join(RAW_DIR,'MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs')
 ALGORITHMS = ['icasso','robustica_pca']
+N_GENES = list(np.arange(500,15100,500)) + [20224]
 
 ##### RULES #####
 rule all:
     input:
-        # cluster ICA runs
+        # benchmark ICA with different dataset sizes
+        expand(os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','{dataset}','{n_genes}','{algorithm}','S.tsv.gz'),
+               algorithm=ALGORITHMS, dataset=DATASETS, n_genes=N_GENES),
+        os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','stats_merged.tsv.gz'),
+        
+        # ICA case study
         expand(os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','S.tsv.gz'), algorithm=ALGORITHMS, dataset=DATASETS),
         
         # make figures
         #expand(os.path.join(RESULTS_DIR,'figures','{dataset}'), dataset=DATASETS)
         
         
-rule cluster_ica_runs:
+rule benchmark_ica_ngenes:
+    input:
+        S_all = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
+        A_all = os.path.join(PREP_DIR,'ica_runs','{dataset}','A.pickle.gz')
+    output:
+        S = os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','{dataset}','{n_genes}','{algorithm}','S.tsv.gz'),
+        A = os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','{dataset}','{n_genes}','{algorithm}','A.tsv.gz'),
+        stats = os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','{dataset}','{n_genes}','{algorithm}','stats.tsv.gz')
+    params:
+        n_components = 100,
+        robust_runs = 100,
+        algorithm = '{algorithm}',
+        n_genes = '{n_genes}'
+    shell:
+        """
+        python scripts/cluster_ica_runs.py \
+                    --S_all_file={input.S_all} \
+                    --A_all_file={input.A_all} \
+                    --S_file={output.S} \
+                    --A_file={output.A} \
+                    --stats_file={output.stats} \
+                    --n_components={params.n_components} \
+                    --robust_runs={params.robust_runs} \
+                    --algorithm={params.algorithm} \
+                    --n_genes={params.n_genes}
+        """
+        
+        
+rule combine_benchmarks_ngenes:
+    input:
+        [os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes',
+                      '{dataset}','{n_genes}','{algorithm}','stats.tsv.gz'
+                     ).format(dataset=dataset, n_genes=n_genes, algorithm=algorithm)
+         for n_genes in N_GENES
+         for dataset in DATASETS
+         for algorithm in ALGORITHMS]
+    output:
+        os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','stats_merged.tsv.gz')
+    run:
+        import pandas as pd
+        df = pd.concat([pd.read_table(f) for f in input])
+        df.to_csv(output[0], sep='\t', compression='gzip', index=False)
+            
+    
+rule case_study_ica:
     input:
         S_all = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
         A_all = os.path.join(PREP_DIR,'ica_runs','{dataset}','A.pickle.gz')
@@ -63,7 +114,7 @@ rule figures_case_study:
         metadata = os.path.join(PREP_DIR,'metadata','{dataset}.tsv'),
         stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','stats.tsv.gz'),
         sample_indices = os.path.join(PREP_DIR,'sample_indices','{dataset}.tsv'),
-        msigdb_dir = directory(MSIGDB_DIR)
+        msigdb_dir = MSIGDB_DIR
     output:
         directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
     shell:
