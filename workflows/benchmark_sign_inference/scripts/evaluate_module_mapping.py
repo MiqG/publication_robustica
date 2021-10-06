@@ -201,12 +201,12 @@ def evaluate_performance(rica):
         * clustering_info["sign"].values
         * clustering_info["orientation"].values
     ).T
-    clustering_info = pd.merge(clustering_info, compute_iq(X, labels), on="cluster_id")
     clustering_info["silhouette_euclidean"] = silhouette_samples(X, labels)
     D = 1 - np.abs(np.corrcoef(rica.S_all.T))
     clustering_info["silhouette_pearson"] = silhouette_samples(
         D, labels, metric="precomputed"
     )
+    clustering_info = pd.merge(clustering_info, compute_iq(X, labels), on="cluster_id")
 
     return S, A, S_std, A_std, performance, clustering_info
 
