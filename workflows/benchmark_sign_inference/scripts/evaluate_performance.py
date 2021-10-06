@@ -209,13 +209,13 @@ def evaluate_performance(rica):
     X = (
         rica.S_all * clustering_info["sign"].values * clustering_info["orientation"].values
     ).T
-    clustering_info = pd.merge(clustering_info, compute_iq(X, labels), on="cluster_id")
     clustering_info["silhouette_euclidean"] = silhouette_samples(X, labels)
     D = 1 - np.abs(np.corrcoef(rica.S_all.T))
     clustering_info["silhouette_pearson"] = silhouette_samples(
         D, labels, metric="precomputed"
     )
-
+    clustering_info = pd.merge(clustering_info, compute_iq(X, labels), on="cluster_id")
+    
     return S, A, S_std, A_std, performance, clustering_info
 
 
@@ -259,13 +259,13 @@ def main():
         rica = RobustICA(**rica_kws)
         rica.S_all = S_all.values
         rica.A_all = A_all.values
-
+        
         S, A, S_std, A_std, performance, clustering_info = evaluate_performance(rica)
         
         # add algorithm
         performance["algorithm"] = algorithm
         clustering_info["algorithm"] = algorithm
-
+        
         # prepare outpus
         S_robusts[algorithm] = pd.DataFrame(S, index=S_all.index)
         S_stds[algorithm] = pd.DataFrame(S_std, index=S_all.index)
@@ -273,7 +273,7 @@ def main():
         A_stds[algorithm] = pd.DataFrame(A_std, index=A_all.index)
         performances.append(performance)
         clustering_infos.append(clustering_info)
-
+        
     performances = pd.concat(performances)
     clustering_infos = pd.concat(clustering_infos)
 
