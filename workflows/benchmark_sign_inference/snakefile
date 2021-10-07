@@ -53,6 +53,10 @@ rule all:
         # evaluate module mapping
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz'),dataset=DATASETS),
         
+        # evaluate module mapping robustness
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-module_mapping_robustness.tsv.gz'), dataset=DATASETS, algorithm=['icasso','robustica_pca']),
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_robustness.tsv.gz'), dataset=DATASETS),
+
         # make figures
         expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
         
@@ -89,7 +93,7 @@ rule evaluate_module_mapping:
         n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset]
     shell:
         """
-        python scripts/evaluate_module_mapping.py \
+        python scripts/evaluate_module_mapping_across_runs.py \
                     --S_all_file={input.S} \
                     --A_all_file={input.A} \
                     --output_file={output} \
@@ -99,6 +103,40 @@ rule evaluate_module_mapping:
         """
         
         
+rule evaluate_module_mapping_robustness:
+    input:
+        S_mean = os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S.tsv.gz'),
+        S_std = os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S_std.tsv.gz')
+    params:
+        algorithm = '{algorithm}',
+        n_samples = 100,
+        index_col = 'log-TPM'
+    output:
+        os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-module_mapping_robustness.tsv.gz')
+    shell:
+        """
+        python scripts/evaluate_module_mapping_robustness.py \
+                    --S_mean_file={input.S_mean} \
+                    --S_std_file={input.S_std} \
+                    --output_file={output} \
+                    --algorithm={params.algorithm} \
+                    --n_samples={params.n_samples} \
+                    --index_col={params.index_col}
+        """
+
+        
+rule combine_module_mapping_robustness:
+    input:
+        [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-module_mapping_robustness.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') 
+         for algorithm in ['icasso','robustica_pca']]
+    output:
+        os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_robustness.tsv.gz')
+    run:
+        import pandas as pd
+        df = pd.concat([pd.read_table(f) for f in input])
+        df.to_csv(output[0], sep='\t', compression='gzip', index=False)
+    
+    
 formatted = {
     'S_means' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
     'S_stds' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S_std.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
@@ -110,6 +148,7 @@ rule figures_benchmark_sign_inference:
         performance_evaluation = os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),
         clustering_info = os.path.join(RESULTS_DIR,'files','{dataset}','clustering_info.tsv.gz'),
         mapping_eval = os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz'),
+        mapping_robust = os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_robustness.tsv.gz'),
         S_means = formatted['S_means'],
         S_stds = formatted['S_stds'],
         A_means = formatted['A_means'],
@@ -131,6 +170,7 @@ rule figures_benchmark_sign_inference:
                     --A_means_files={params.A_means} \
                     --A_stds_files={params.A_stds} \
                     --mapping_eval_file={input.mapping_eval} \
+                    --mapping_robust_file={input.mapping_robust} \
                     --figs_dir={output}
         """
         

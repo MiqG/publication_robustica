@@ -24,6 +24,7 @@ require(latex2exp)
 require(writexl)
 require(ggnewscale)
 require(extrafont)
+require(ggbreak)
 
 loadfonts()
 
@@ -43,6 +44,7 @@ THRESH_JACCARD = 0.9
 # performance_evaluation_file = file.path(RESULTS_DIR,'Sastry2019','performance_evaluation.tsv.gz')
 # clustering_info_file = file.path(RESULTS_DIR,'Sastry2019','clustering_info.tsv.gz')
 # mapping_eval_file = file.path(RESULTS_DIR,'Sastry2019','module_mapping_evaluation.tsv.gz')
+# mapping_robust_file = file.path(RESULTS_DIR,'Sastry2019','module_mapping_robustness.tsv.gz')
 
 # S_means_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','S.tsv.gz')),','))
 # A_means_files = unlist(strsplit(file.path(RESULTS_DIR,'Sastry2019',paste0(algorithms,'-','A.tsv.gz')),','))
@@ -159,7 +161,7 @@ plot_clustering_evaluation = function(df){
     plts[['clustering-silhouettes-violins']] = X %>%
         ggviolin(x='algorithm', y='silhouette_euclidean', trim = TRUE,
                  fill='algorithm', color=NA, palette='Paired') + 
-        guides(fill=FALSE) +
+        guides(fill='none') +
         geom_boxplot(width=0.1, outlier.size = 0.1) +
         labs(x='Algorithm', y='Silhouette Score')
      
@@ -167,7 +169,7 @@ plot_clustering_evaluation = function(df){
         ggviolin(x='algorithm', y='mean_std_cluster', trim = TRUE,
                  fill='algorithm', color=NA, palette='Paired') + 
         geom_boxplot(width=0.1, outlier.size = 0.1) +
-        guides(fill=FALSE) +
+        guides(fill='none') +
         labs(x='Algorithm', y='Cluster Mean Std.')
     
      plts[['clustering-silhouettes_vs_stds-scatter']] = X %>%
@@ -200,7 +202,7 @@ plot_weights_precision = function(S_info){
         ggviolin(x='algorithm', y='correlation', trim = TRUE,
                  fill='algorithm', color=NA, palette='Paired') + 
         geom_boxplot(width=0.05, outlier.size = 0.1) +
-        guides(fill=FALSE) +
+        guides(fill='none') +
         labs(x='Algorithm', y='Correlation Weights Mean vs Std.')
     
     plts[['clustering-weightS_means_vs_std-scatters']] = X %>%
@@ -389,21 +391,39 @@ plot_mapping_eval = function(mapping_eval){
     plts[['mapping_eval-errorplot']] = mapping_eval %>% 
         filter(algorithm %in% c('icasso','robustica_pca')) %>% 
         ggline(x='runs', y='jaccard', add='mean_se', point.size=0.1,
-               numeric.x.axis = TRUE, palette=get_palette('Paired',4)[c(1,4)],
-               color='algorithm', linetype='dashed')
+               numeric.x.axis = FALSE, palette=get_palette('Paired',4)[c(1,4)],
+               color='algorithm', linetype='dashed') +
+        stat_compare_means(method='kruskal.test')
     
     return(plts)
 }
 
 
-make_plots = function(performance_evaluation, S_info, module_comparisons, mapping_eval){
+plot_mapping_robust = function(mapping_robust){
+    plts = list()
+
+    plts[['mapping_robust-violin']] = mapping_robust %>% 
+        ggviolin(x='algorithm', y='mean', fill='algorithm', color=NA, trim=TRUE, 
+                 palette=get_palette('Paired',4)[c(1,4)]) + 
+        geom_boxplot(fill=NA, outlier.size = 0.1) +
+        guides(color='none', fill='none') +
+        labs(x='Algorithm', y='Sampled Mean Jaccard') +
+        scale_y_break(c(0.15,0.6), scales='free') +
+        stat_compare_means(method='wilcox.test')
+    
+    return(plts)
+}
+
+
+make_plots = function(performance_evaluation, S_info, module_comparisons, mapping_eval, mapping_robust){
     plts = list(
         plot_corr_vs_euc(),
         plot_performance_profile(performance_evaluation),
         plot_clustering_evaluation(S_info),
         plot_weights_precision(S_info),
         plot_module_comparisons(module_comparisons),
-        plot_mapping_eval(mapping_eval)
+        plot_mapping_eval(mapping_eval),
+        plot_mapping_robust(mapping_robust)
     )
     plts = do.call(c,plts)
     return(plts)
@@ -421,7 +441,8 @@ named_group_split <- function(.tbl, ...) {
 
 
 make_figdata = function(performance_evaluation, clustering_evaluation, 
-                        S_info, A_info, module_comparisons, mapping_eval){
+                        S_info, A_info, module_comparisons, 
+                        mapping_eval, mapping_robust){
     
     # prep
     ## gene module evaluation
@@ -460,6 +481,7 @@ make_figdata = function(performance_evaluation, clustering_evaluation,
         performance_evaluation = performance_evaluation,
         clustering_evaluation = clustering_evaluation,
         module_mapping_diff_runs = mapping_eval,
+        module_mapping_robustness = mapping_robust,
         gene_modules_jaccard_similarity = sim %>% rownames_to_column('component'),
         gene_modules_mapping = mapping
     )
@@ -516,6 +538,8 @@ save_plots = function(plts, figs_dir){
     
     save_plot(plts[['mapping_eval-errorplot']],'mapping_eval-errorplot','.pdf', figs_dir, width=6, height=6)
     
+    save_plot(plts[['mapping_robust-violin']],'mapping_robust-violin','.pdf', figs_dir, width=6, height=6)
+    
     save_plot(plts[['module_comparisons-module_sizes-scatter']] + theme(aspect.ratio = 1),'module_comparisons-module_sizes-scatter','.pdf',figs_dir, width=6, height=8)
     save_plot(plts[['module_comparisons-module_sizes_diffs-hist']],'module_comparisons-module_sizes_diffs-hist','.pdf',figs_dir, width=8, height=8)
     save_plot(plts[['module_comparisons-module_sizes_diffs-barplot']],'module_comparisons-module_sizes_diffs-barplot','.pdf',figs_dir, width=8, height=8)
@@ -531,6 +555,7 @@ main = function(){
     performance_evaluation_file = args$performance_evaluation_file
     clustering_info_file = args$clustering_info_file
     mapping_eval_file = args$mapping_eval_file
+    mapping_robust_file = args$mapping_robust_file
     S_stds_files = unlist(strsplit(args$S_stds_files,','))
     S_means_files = unlist(strsplit(args$S_means_files,','))
     A_means_files = unlist(strsplit(args$A_means_files,','))
@@ -541,6 +566,7 @@ main = function(){
     
     # load data
     mapping_eval = read_tsv(mapping_eval_file)
+    mapping_robust = read_tsv(mapping_robust_file)
     performance_evaluation = read_tsv(performance_evaluation_file) %>% 
         filter(`function` != 'evaluate_performance') %>%
         group_by(algorithm) %>% 
@@ -580,11 +606,12 @@ main = function(){
     # analysis
     module_comparisons = make_module_comparisons(S_info)
     figdata = make_figdata(performance_evaluation, clustering_evaluation, 
-                           S_info, A_info, module_comparisons, mapping_eval)
+                           S_info, A_info, module_comparisons, 
+                           mapping_eval, mapping_robust)
     
     # visualize
     plts = make_plots(performance_evaluation, S_info, 
-                      module_comparisons, mapping_eval)
+                      module_comparisons, mapping_eval, mapping_robust)
     
     # save
     save_plots(plts, figs_dir)
