@@ -20,6 +20,7 @@ require(reshape2)
 require(ggrepel)
 require(writexl)
 require(extrafont)
+require(ggbreak)
 
 loadfonts()
 
@@ -67,51 +68,40 @@ plot_silhouettes = function(df, lab='', labsize=0.1){
         melt(id.vars = c('cluster_id','property_oi','time','max_memory')) %>%
         mutate(time=as.numeric(time)) %>%
         group_by(property_oi, time, max_memory, cluster_id) %>%
-        summarize(value=mean(value)) # keep the mean silhouette_person per cluster
+        summarize(value=mean(value)) # keep the mean silhouette per cluster
     
     palette = get_palette('Paired',length(unique(X[['property_oi']])))
     
     plts = list()    
     
     # silhouettes vs time
-    med = X %>% 
-        group_by(property_oi, time, max_memory) %>%
-        summarize(median_value=median(value))
-    plts[['silhouettes_vs_time']] = ggplot(
-        X ,aes(x=time, y=value, fill=NULL, color=property_oi)
-        ) + 
-        geom_boxplot(outlier.size = 0.1, width=20) + 
+    plts[['silhouettes_vs_time']] = X %>%
+        ggplot(aes(x=time, y=value, fill=property_oi)) + 
+        geom_boxplot(outlier.size = 0.1, width=100) + 
         theme_pubr() + 
-        geom_text_repel(
-            aes(x=time, y=median_value, label=property_oi), med) + 
-        guides(color=FALSE) +
         labs(x='Time (s)', y='Silhouette Score') +
-        theme(axis.text = element_text(size=labsize, family='Arial'))
+        theme(axis.text = element_text(size=labsize, family='Arial')) +
+        scale_x_break(c(200,500)) +
+        fill_palette(palette)
+
     
     # silhouettes vs memory
-    med = X %>% 
-        group_by(property_oi, time, max_memory) %>%
-        summarize(median_value=median(value))
-    plts[['silhouettes_vs_max_memory']] = ggplot(
-        X, aes(x=max_memory, y=value, fill=NULL, color=property_oi)
-        ) + 
-        geom_boxplot(outlier.size = 0.1, width=20) + 
+    plts[['silhouettes_vs_max_memory']] = X %>%
+        ggplot(aes(x=max_memory, y=value, fill=property_oi)) + 
+        geom_boxplot(outlier.size = 0.1, width=100) + 
         theme_pubr() + 
-        geom_text_repel(
-            aes(x=max_memory, y=median_value, label=property_oi), med) +
-        guides(color=FALSE) +
         labs(x='Max. Memory (MiB)', y='Silhouette Score') +
-        theme(text = element_text(size=labsize,family='Arial'))
-    
-    plts = sapply(plts, function(plt){ set_palette(plt, palette) }, simplify=FALSE)
-    
+        theme(text = element_text(size=labsize,family='Arial')) +
+        scale_x_break(c(4500,5500)) +
+        fill_palette(palette)
     
     # memory vs time vs silhouettes
     plts[['silhouettes_vs_max_memory_vs_time']] = X %>% 
         group_by(property_oi, time, max_memory) %>% 
         summarize(silhouette = median(value)) %>% 
-        ggscatter(x='time', y='max_memory', size='silhouette', repel = TRUE, 
-                  color='property_oi', label='property_oi') +
+        ggscatter(x='time', y='max_memory', size='silhouette', 
+                  repel = TRUE, color='property_oi', label='property_oi', 
+                  palette=palette) +
         guides(color=FALSE) +
         labs(x='Time (s)', y='Max. Memory (MiB)', size='Silhouette Score') +
         theme(text = element_text(size=labsize,family='Arial'))
