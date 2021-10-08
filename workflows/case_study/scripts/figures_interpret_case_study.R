@@ -59,7 +59,7 @@ THRESH_FDR = 0.01
 # genexpr_file = file.path(PREP_DIR,'genexpr','LGG.tsv.gz')
 # snv_file = file.path(PREP_DIR,'snv','LGG.tsv.gz')
 # metadata_file = file.path(PREP_DIR,'metadata','LGG.tsv')
-# figs_dir = file.path(ROOT,'results','case_study','figures','LGG')
+# figs_dir = file.path(ROOT,'results','case_study','figures','interpretation','LGG')
 
 # sample_indices_file = file.path(PREP_DIR,'sample_indices','LGG.tsv')
 # msigdb_dir = file.path(ROOT,'data','raw','MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs')
@@ -261,7 +261,7 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
                  fill='is_mut', color=NA, palette='lancet') +
         geom_boxplot(width=0.1, outlier.size = 0.1) +
         stat_compare_means(method='wilcox.test', family="Arial", size=3) +
-        guides(fill=FALSE) +
+        guides(fill='none') +
         labs(x=TeX('\\textit{IDH1}'), y=sprintf('Weights Component %s',component_oi))
     
     # genes info
@@ -312,6 +312,21 @@ plot_component_oi = function(genexpr, S, A, metadata, sample_indices,
 }
 
 
+plot_comparison_component_oi = function(Ss){
+    
+    X = data.frame(robustica_pca=Ss[['robustica_pca']][,'67']%>%pull(), 
+                   icasso=Ss[['icasso']][,'95']%>%pull())
+    
+    plts = list()
+    plts[['comparison_components-robustica_pca_vs_icasso']] = X %>% 
+        ggscatter(x='robustica_pca', y='icasso', color='orange') + 
+        geom_abline(intercept=0, slope=1, linetype='dashed') +
+        labs(x='Weights Component 67 (robustica)', y='Weights Component 95 (icasso)')
+    
+    return(plts)
+}
+
+
 make_figdata = function(S, A, metadata, sample_indices, enrichments, results_analysis){
     # make gene modules
     is_selected = S %>% mutate_at(vars(-('sample')), define_module)
@@ -356,7 +371,7 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['weights_vs_mitotic_index']], 'weights_vs_mitotic_index', '.png', figs_dir, width=6, height=6)
     
     save_plot(plts[['weights_vs_surv_time']], 'weights_vs_surv_time', '.png', figs_dir, width=6, height=6)
-    save_plot(print(plts[['weights_vs_surv_km']]), 'weights_vs_surv_km', '.pdf', figs_dir, width=6, height=6, change_params=FALSE)
+    save_plot(plts[['weights_vs_surv_km']]$plot, 'weights_vs_surv_km', '.pdf', figs_dir, width=6, height=6, change_params=FALSE)
     
     save_plot(plts[['weights_vs_mutation']], 'weights_vs_mutation', '.pdf', figs_dir, width=6, height=6)
     
@@ -400,8 +415,8 @@ main = function(){
     # load data
     msigdb = list(h = read.gmt(file.path(msigdb_dir,'h.all.v7.4.symbols.gmt')))
     
-    Ss = load_mats(S_files, 'sample', 'gene', 'weight_mean')
-    As = load_mats(A_files, 'index', 'sample', 'weight_mean')
+    S = read_tsv(S_file)
+    A = read_tsv(A_file)
     stats = read_tsv(stats_file)
     genexpr = read_tsv(genexpr_file)
     snv = read_tsv(snv_file)
@@ -414,10 +429,11 @@ main = function(){
     # drop unwanted components: -1, silhouette
     clean_components = stats %>% 
         filter(silhouette_euclidean>0.9) %>% 
-        pull(cluster_id)
-    S = S[,c(1,1+clean_components)]
-    A = A[,c(1,1+clean_components)]
-    stats = stats %>% filter(cluster_id %in% clean_components)
+        pull(cluster_id) %>%
+        as.character()
+    S = S[,c('sample',clean_components)]
+    A = A[,c('index',clean_components)]
+    stats = stats %>% filter(cluster_id %in% as.numeric(clean_components))
     
     # add IDH1 mutation in metadata
     mut_samples = snv %>% 
@@ -427,14 +443,14 @@ main = function(){
         mutate(is_mut = as.character(sampleID %in% mut_samples)) %>%
         left_join(sample_indices, by='sampleID')
     
-    # analysis - 67 stands out
+    # analysis - 7 stands out
     results = analyze_components(A, metadata)
     comps_correls = sort(abs(results[['sample_indices']]['mitotic_index',]))
     comps_survs = results[['survival']] %>% arrange(abs(coxph_zscore))
-    comps_mitotic_index = results[['mutation']] %>% filter(fdr < 0.05) %>% arrange(abs(med_diff))
+    comps_mutation = results[['mutation']] %>% filter(fdr < 0.05) %>% arrange(abs(med_diff))
     
     # enrichment for component of interest
-    component_oi = '67'
+    component_oi = '7'
     df = S[,c('sample',component_oi)]
     colnames(df) = c('gene', 'weights')
     df[['component']] = component_oi

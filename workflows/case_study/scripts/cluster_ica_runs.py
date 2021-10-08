@@ -17,15 +17,31 @@ ALGORITHMS = {
     "icasso": {
         "robust_infer_signs": False,
         "robust_dimreduce": False,
-        "robust_kws": {"n_clusters": np.nan},
+        "robust_method": "DBSCAN",
+        "robust_kws": {"metric": "precomputed"},
     },
     "robustica_pca": {
         "robust_infer_signs": True,
         "robust_dimreduce": True,
-        "robust_kws": {"affinity": "euclidean", "linkage": "average"},
+        "robust_method": "DBSCAN",
+        "robust_kws": {"metric": "euclidean"},
     },
 }
 RANDOM_SEED = 1234
+
+"""
+Development
+-----------
+import os
+ROOT = '~/projects/publication_robustica/'
+PREP_DIR = os.path.join(ROOT,'data','prep')
+S_all_file = os.path.join(PREP_DIR,'ica_runs','LGG','S.pickle.gz')
+A_all_file = os.path.join(PREP_DIR,'ica_runs','LGG','A.pickle.gz')
+n_genes=None
+algorithm='icasso'
+n_components=100
+robust_runs=100
+"""
 
 ##### FUNCTIONS #####
 def load_data(S_all_file, A_all_file, n_genes):
@@ -43,8 +59,6 @@ def load_data(S_all_file, A_all_file, n_genes):
 
 def cluster_ica_runs(S_all, A_all, n_components, robust_runs, algorithm):
     # cluster
-    ALGORITHMS['icasso']['robust_kws']['n_clusters'] = n_components
-    
     rica = robustica.RobustICA(
         n_components = n_components, 
         robust_runs = robust_runs,
@@ -64,8 +78,9 @@ def cluster_ica_runs(S_all, A_all, n_components, robust_runs, algorithm):
     evaluation = pd.merge(evaluation, eval_pearson, on='cluster_id')
 
     # prepare outputs
-    S = pd.DataFrame(S, index=S_all.index).reset_index()
-    A = pd.DataFrame(A, index=A_all.index).reset_index()
+    labels = np.unique(rica.clustering.labels_)
+    S = pd.DataFrame(S, index=S_all.index, columns=labels).reset_index()
+    A = pd.DataFrame(A, index=A_all.index, columns=labels).reset_index()
     stats = pd.merge(clustering_stats, evaluation, on='cluster_id')
     stats['n_genes'] = S.shape[0]
     stats['n_samples'] = A.shape[0]
