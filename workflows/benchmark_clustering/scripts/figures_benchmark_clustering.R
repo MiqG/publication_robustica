@@ -81,7 +81,8 @@ plot_silhouettes = function(df, lab='', labsize=0.1){
         theme_pubr() + 
         labs(x='Time (s)', y='Silhouette Score') +
         theme(axis.text = element_text(size=labsize, family='Arial')) +
-        scale_x_break(c(200,500)) +
+        #scale_x_break(c(200,500)) +
+        guides(fill='none') +
         fill_palette(palette)
 
     
@@ -92,7 +93,8 @@ plot_silhouettes = function(df, lab='', labsize=0.1){
         theme_pubr() + 
         labs(x='Max. Memory (MiB)', y='Silhouette Score') +
         theme(text = element_text(size=labsize,family='Arial')) +
-        scale_x_break(c(4500,5500)) +
+        #scale_x_break(c(4500,5500)) +
+        guides(fill='none') +
         fill_palette(palette)
     
     # memory vs time vs silhouettes
@@ -102,7 +104,7 @@ plot_silhouettes = function(df, lab='', labsize=0.1){
         ggscatter(x='time', y='max_memory', size='silhouette', 
                   repel = TRUE, color='property_oi', label='property_oi', 
                   palette=palette) +
-        guides(color=FALSE) +
+        guides(color='none') +
         labs(x='Time (s)', y='Max. Memory (MiB)', size='Silhouette Score') +
         theme(text = element_text(size=labsize,family='Arial'))
 

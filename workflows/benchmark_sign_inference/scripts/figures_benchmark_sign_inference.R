@@ -161,7 +161,7 @@ plot_clustering_evaluation = function(S_info){
     plts = list()
     plts[['clustering-silhouettes-violins']] = X %>%
         ggviolin(x='algorithm', y='silhouette_euclidean', trim = TRUE,
-                 add='jitter', add.params=list(color='black', size=0.01),
+                 add='jitter', add.params=list(color='black', size=0.001),
                  fill='algorithm', color=NA, palette='Paired') + 
         guides(fill='none') +
         geom_boxplot(width=0.1, outlier.size = 0.1, outlier.color=NA) +
@@ -192,12 +192,12 @@ plot_clustering_evaluation = function(S_info){
         ggbarplot(x='thresh_silh', y='n', fill='algorithm', label=TRUE, lab.size = 1,
                   color=FALSE, palette=get_palette('Paired',4)[c(1,4)], 
                   position=position_dodge(0.7)) + 
-        labs(x='Threshold Silhouette', y='No. High-Silhouette Components')
+        labs(x='Threshold Silhouette', y='n High-Silhouette Components')
     
     
     plts[['clustering-S_stds-violins']] = X %>% 
         ggviolin(x='algorithm', y='mean_std_cluster', trim = TRUE, 
-                 add='jitter', add.params=list(color='black', size=0.01),
+                 add='jitter', add.params=list(color='black', size=0.001),
                  fill='algorithm', color=NA, palette='Paired') + 
         geom_boxplot(width=0.1, outlier.size = 0.1, outlier.color=NA) +
         guides(fill='none') +
@@ -231,9 +231,9 @@ plot_weights_precision = function(S_info){
     
     plts[['clustering-weightS_means_vs_std-violins']] = correls %>%
         ggviolin(x='algorithm', y='correlation', trim = TRUE, width=1,
-                 add='jitter', add.params=list(color='black', size=0.01),
+                 add='jitter', add.params=list(color='black', size=0.001),
                  fill='algorithm', color=NA, palette='Paired') + 
-        geom_boxplot(width=0.05, outlier.size = 0.1) +
+        geom_boxplot(width=0.05, outlier.size = 0.1, outlier.color=NA) +
         guides(fill='none') +
         labs(x='Algorithm', y='Correlation Weights Mean vs Std.')
     
@@ -570,7 +570,7 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['clustering-silhouettes-violins']],'clustering-silhouettes-violins','.pdf',figs_dir, width=4,height=4)
     save_plot(plts[['clustering-S_stds-violins']],'clustering-S_stds-violins','.pdf',figs_dir, width=4,height=4)
     save_plot(plts[['clustering-silhouettes-barplots']],'clustering-silhouettes-barplots','.pdf',figs_dir, width=4,height=4)
-    save_plot(plts[['clustering-silhouette_thresholds']],'clustering-silhouette_thresholds','.pdf',figs_dir, width=6, height=8)
+    save_plot(plts[['clustering-silhouette_thresholds']],'clustering-silhouette_thresholds','.pdf',figs_dir, width=6, height=7)
     save_plot(plts[['clustering-silhouettes_vs_stds-scatter']],'clustering-silhouettes_vs_stds-scatter','.png',figs_dir, width=20,height=20)
     save_plot(plts[['clustering-weightS_means_vs_std-violins']],'clustering-weightS_means_vs_std-violins','.pdf',figs_dir, width=4,height=4)
     save_plot(plts[['clustering-weightS_means_vs_std-scatters']],'clustering-weightS_means_vs_std-scatters','.png',figs_dir, width=12,height=12)
@@ -581,7 +581,7 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['mapping_eval-errorplot']],'mapping_eval-errorplot','.pdf', figs_dir, width=6, height=6)
     save_plot(plts[['mapping_eval-n_components']],'mapping_eval-n_components','.pdf', figs_dir, width=6, height=6)
     
-    save_plot(plts[['mapping_robust-violin']],'mapping_robust-violin','.pdf', figs_dir, width=6, height=6)
+    save_plot(plts[['mapping_robust-violin']],'mapping_robust-violin','.pdf', figs_dir, width=6, height=5)
     
     save_plot(plts[['module_comparisons-module_sizes-scatter']] + theme(aspect.ratio = 1),'module_comparisons-module_sizes-scatter','.pdf',figs_dir, width=6, height=8)
     save_plot(plts[['module_comparisons-module_sizes_diffs-hist']],'module_comparisons-module_sizes_diffs-hist','.pdf',figs_dir, width=8, height=8)
