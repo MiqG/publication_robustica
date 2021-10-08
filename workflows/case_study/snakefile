@@ -15,24 +15,34 @@ RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','case_study')
 
-DATASETS = ['LGG']
+DATASETS = ['LGG','Sastry2019']
 MSIGDB_DIR = os.path.join(RAW_DIR,'MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs')
 ALGORITHMS = ['icasso','robustica_pca']
-N_GENES = list(np.arange(500,15100,500)) + [20224]
+N_GENES = {
+    'LGG': list(np.arange(500,20000,500)) + [20224],
+    'Sastry2019': list(np.arange(200,3900,200)) + [3923]
+}
 
 ##### RULES #####
 rule all:
     input:
         # benchmark ICA with different dataset sizes
+        ## LGG
         expand(os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','{dataset}','{n_genes}','{algorithm}','S.tsv.gz'),
-               algorithm=ALGORITHMS, dataset=DATASETS, n_genes=N_GENES),
-        os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','stats_merged.tsv.gz'),
+               algorithm=ALGORITHMS, dataset=['LGG'], n_genes=N_GENES['LGG']),
+        # Sastry2019
+        expand(os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','{dataset}','{n_genes}','{algorithm}','S.tsv.gz'),
+               algorithm=ALGORITHMS, dataset=['Sastry2019'], n_genes=N_GENES['Sastry2019']),
+        ## merge stats by dataset
+        expand(os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','{dataset}','stats_merged.tsv.gz'), dataset=DATASETS),
+        ## plot
+        expand(os.path.join(RESULTS_DIR,'figures','benchmark_ngenes','{dataset}'),dataset=DATASETS),
         
-        # ICA case study
-        expand(os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','S.tsv.gz'), algorithm=ALGORITHMS, dataset=DATASETS),
-        
-        # make figures
-        #expand(os.path.join(RESULTS_DIR,'figures','{dataset}'), dataset=DATASETS)
+        # Explore case study
+        ## cluster components
+        expand(os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','S.tsv.gz'), algorithm=ALGORITHMS, dataset=['LGG']),
+        ## make figures
+        expand(os.path.join(RESULTS_DIR,'figures','interpretation','{dataset}'), dataset=['LGG'])
         
         
 rule benchmark_ica_ngenes:
@@ -65,20 +75,42 @@ rule benchmark_ica_ngenes:
         
 rule combine_benchmarks_ngenes:
     input:
-        [os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes',
+        lambda wildcards:[
+            os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes',
                       '{dataset}','{n_genes}','{algorithm}','stats.tsv.gz'
-                     ).format(dataset=dataset, n_genes=n_genes, algorithm=algorithm)
-         for n_genes in N_GENES
-         for dataset in DATASETS
-         for algorithm in ALGORITHMS]
+                     ).format(dataset='{dataset}', n_genes=n_genes, algorithm=algorithm)
+            for n_genes in N_GENES[wildcards.dataset]
+            for algorithm in ALGORITHMS
+        ]
     output:
-        os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','stats_merged.tsv.gz')
+        os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','{dataset}','stats_merged.tsv.gz')
     run:
+        import os
         import pandas as pd
-        df = pd.concat([pd.read_table(f) for f in input])
+        df = pd.concat([pd.read_table(f).assign(algorithm=os.path.basename(os.path.dirname(f)))
+                        for f in input])
         df.to_csv(output[0], sep='\t', compression='gzip', index=False)
             
-    
+
+rule figures_benchmark_ngenes:
+    input:
+        stats = os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','stats_merged.tsv.gz'),
+        S_icasso = os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','LGG','20224','icasso','S.tsv.gz'),
+        S_robustica = os.path.join(RESULTS_DIR,'files','benchmark_ica_ngenes','LGG','20224','robustica_pca','S.tsv.gz')
+    params:
+        dataset = '{dataset}'
+    output:
+        directory(os.path.join(RESULTS_DIR,'figures','benchmark_ngenes','{dataset}'))
+    shell:
+        """
+        Rscript scripts/figures_benchmark_ngenes.R \
+                    --stats_file={input.stats} \
+                    --S_icasso_file={input.S_icasso} \
+                    --S_robustica_file={input.S_robustica} \
+                    --dataset={params.dataset} \
+                    --figs_dir={output}
+        """
+            
 rule case_study_ica:
     input:
         S_all = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
@@ -107,16 +139,16 @@ rule case_study_ica:
         
 rule figures_case_study:
     input:
-        S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','S.tsv.gz'),
-        A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','A.tsv.gz'),
+        S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','robustica_pca','S.tsv.gz'),
+        A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','robustica_pca','A.tsv.gz'),
+        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','robustica_pca','stats.tsv.gz'),
         genexpr = os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz'),
         snv = os.path.join(PREP_DIR,'snv','{dataset}.tsv.gz'),
         metadata = os.path.join(PREP_DIR,'metadata','{dataset}.tsv'),
-        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','{algorithm}','stats.tsv.gz'),
         sample_indices = os.path.join(PREP_DIR,'sample_indices','{dataset}.tsv'),
         msigdb_dir = MSIGDB_DIR
     output:
-        directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
+        directory(os.path.join(RESULTS_DIR,'figures','interpretation','{dataset}'))
     shell:
         """
         Rscript scripts/figures_interpret_case_study.R \
