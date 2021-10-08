@@ -60,13 +60,24 @@ rule all:
         # make figures
         expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
         
-        
+# outputs rule below
+formatted = {
+    'S_means' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
+    'S_stds' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S_std.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
+    'A_means' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-A.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
+    'A_stds' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-A_std.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS]
+}
 rule evaluate_performance:
     input:
         S = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
         A = os.path.join(PREP_DIR,'ica_runs','{dataset}','A.pickle.gz'),
     output:
-        os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz')
+        formatted['S_means'],
+        formatted['S_stds'],
+        formatted['A_means'],
+        formatted['A_stds'],
+        os.path.join(RESULTS_DIR,'files','{dataset}','clustering_info.tsv.gz'),
+        perf_eval = os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz')
     params:
         algorithms = ','.join(ALGORITHMS),
         iterations = ITERATIONS
@@ -75,10 +86,11 @@ rule evaluate_performance:
         python scripts/evaluate_performance.py \
                     --S_all_file={input.S} \
                     --A_all_file={input.A} \
-                    --output_file={output} \
+                    --output_file={output.perf_eval} \
                     --iterations={params.iterations} \
                     --algorithms={params.algorithms}
         """
+
 
         
 rule evaluate_module_mapping:
@@ -88,7 +100,7 @@ rule evaluate_module_mapping:
     output:
         os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz')
     params:
-        algorithms = ','.join(ALGORITHMS),
+        algorithms = ','.join(['icasso','robustica_pca']),
         iterations = ITERATIONS,
         n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset]
     shell:
@@ -105,6 +117,7 @@ rule evaluate_module_mapping:
         
 rule evaluate_module_mapping_robustness:
     input:
+        os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'), # not used
         S_mean = os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S.tsv.gz'),
         S_std = os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S_std.tsv.gz')
     params:
@@ -137,12 +150,6 @@ rule combine_module_mapping_robustness:
         df.to_csv(output[0], sep='\t', compression='gzip', index=False)
     
     
-formatted = {
-    'S_means' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
-    'S_stds' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S_std.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
-    'A_means' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-A.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS],
-    'A_stds' : [os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-A_std.tsv.gz').format(algorithm=algorithm, dataset='{dataset}') for algorithm in ALGORITHMS]
-}
 rule figures_benchmark_sign_inference:
     input:
         performance_evaluation = os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),

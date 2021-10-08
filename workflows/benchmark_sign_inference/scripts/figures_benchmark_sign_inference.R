@@ -133,8 +133,8 @@ plot_corr_vs_euc = function(len=10){
 }
 
 
-plot_performance_profile = function(df){
-    X = df
+plot_performance_profile = function(performance_evaluation){
+    X = performance_evaluation
     
     plts = list()
     plts[['mem_time-scatter']] = X %>% 
@@ -151,24 +151,55 @@ plot_performance_profile = function(df){
 }
 
 
-plot_clustering_evaluation = function(df){
+plot_clustering_evaluation = function(S_info){
     # get mean silhouette per cluster
-    X = df %>%
+    X = S_info %>%
         group_by(algorithm,component,silhouette_euclidean) %>%
-        summarize(mean_std_cluster = mean(weight_std))
+        summarize(mean_std_cluster = mean(weight_std)) %>%
+        mutate(high_silh=silhouette_euclidean>0.9)
     
     plts = list()
     plts[['clustering-silhouettes-violins']] = X %>%
         ggviolin(x='algorithm', y='silhouette_euclidean', trim = TRUE,
+                 add='jitter', add.params=list(color='black', size=0.01),
                  fill='algorithm', color=NA, palette='Paired') + 
         guides(fill='none') +
-        geom_boxplot(width=0.1, outlier.size = 0.1) +
+        geom_boxplot(width=0.1, outlier.size = 0.1, outlier.color=NA) +
         labs(x='Algorithm', y='Silhouette Score')
-     
+    
+    plts[['clustering-silhouettes-barplots']] = X %>%
+        ungroup() %>%
+        count(algorithm, high_silh) %>%
+        ggbarplot(x='algorithm', y='n', fill='high_silh', lab.size = 1,
+                  label=TRUE, position=position_dodge(0.7),
+                  color=NA, palette='lancet') +
+        labs(x='Algorithm', y='Count')
+    
+    # how many components do we recover with different silhouette thresholds?
+    threshs = seq(0.5,0.9,0.1)
+    df = lapply(threshs, function(thresh){
+        df = X %>% 
+            ungroup() %>% 
+            mutate(high_silh=silhouette_euclidean>thresh) %>% 
+            count(algorithm, high_silh)
+        df[['thresh_silh']] = thresh
+        return(df)
+    })
+    df = do.call(rbind,df)
+    plts[['clustering-silhouette_thresholds']] = df %>% 
+        filter(high_silh) %>% 
+        filter(algorithm %in% c('icasso','robustica_pca')) %>%
+        ggbarplot(x='thresh_silh', y='n', fill='algorithm', label=TRUE, lab.size = 1,
+                  color=FALSE, palette=get_palette('Paired',4)[c(1,4)], 
+                  position=position_dodge(0.7)) + 
+        labs(x='Threshold Silhouette', y='No. High-Silhouette Components')
+    
+    
     plts[['clustering-S_stds-violins']] = X %>% 
-        ggviolin(x='algorithm', y='mean_std_cluster', trim = TRUE,
+        ggviolin(x='algorithm', y='mean_std_cluster', trim = TRUE, 
+                 add='jitter', add.params=list(color='black', size=0.01),
                  fill='algorithm', color=NA, palette='Paired') + 
-        geom_boxplot(width=0.1, outlier.size = 0.1) +
+        geom_boxplot(width=0.1, outlier.size = 0.1, outlier.color=NA) +
         guides(fill='none') +
         labs(x='Algorithm', y='Cluster Mean Std.')
     
@@ -199,7 +230,8 @@ plot_weights_precision = function(S_info){
     plts = list()
     
     plts[['clustering-weightS_means_vs_std-violins']] = correls %>%
-        ggviolin(x='algorithm', y='correlation', trim = TRUE,
+        ggviolin(x='algorithm', y='correlation', trim = TRUE, width=1,
+                 add='jitter', add.params=list(color='black', size=0.01),
                  fill='algorithm', color=NA, palette='Paired') + 
         geom_boxplot(width=0.05, outlier.size = 0.1) +
         guides(fill='none') +
@@ -245,7 +277,6 @@ make_module_comparisons = function(S_info){
         pivot_wider(id_cols = gene, names_from = component, values_from = in_module)
     sim = simil(icasso[,-1], robustica_pca[,-1], 
                 method='Jaccard', by_rows=FALSE) %>% as.matrix()
-    
     
     # map modules
     rows2cols = paste0(rownames(sim),'_',colnames(sim)[apply(sim,1,which.max)])
@@ -393,7 +424,16 @@ plot_mapping_eval = function(mapping_eval){
         ggline(x='runs', y='jaccard', add='mean_se', point.size=0.1,
                numeric.x.axis = FALSE, palette=get_palette('Paired',4)[c(1,4)],
                color='algorithm', linetype='dashed') +
-        stat_compare_means(method='kruskal.test')
+        stat_compare_means(method='kruskal.test') +
+        labs(x='Runs', y='Jaccard')
+    
+    plts[['mapping_eval-n_components']] = mapping_eval %>% 
+        filter(algorithm %in% c('icasso','robustica_pca')) %>% 
+        count(algorithm,runs) %>% 
+        ggbarplot(x='runs', y='n', fill='algorithm', label=TRUE, lab.size = 1,
+                  color=FALSE, palette=get_palette('Paired',4)[c(1,4)], 
+                  position=position_dodge(0.7)) + 
+        labs(x='Runs', y='No. Total Components')
     
     return(plts)
 }
@@ -408,7 +448,7 @@ plot_mapping_robust = function(mapping_robust){
         geom_boxplot(fill=NA, outlier.size = 0.1) +
         guides(color='none', fill='none') +
         labs(x='Algorithm', y='Sampled Mean Jaccard') +
-        scale_y_break(c(0.15,0.6), scales='free') +
+        scale_y_break(c(0.15,0.7), scales='free') +
         stat_compare_means(method='wilcox.test')
     
     return(plts)
@@ -529,6 +569,8 @@ save_plots = function(plts, figs_dir){
     # clustering
     save_plot(plts[['clustering-silhouettes-violins']],'clustering-silhouettes-violins','.pdf',figs_dir, width=4,height=4)
     save_plot(plts[['clustering-S_stds-violins']],'clustering-S_stds-violins','.pdf',figs_dir, width=4,height=4)
+    save_plot(plts[['clustering-silhouettes-barplots']],'clustering-silhouettes-barplots','.pdf',figs_dir, width=4,height=4)
+    save_plot(plts[['clustering-silhouette_thresholds']],'clustering-silhouette_thresholds','.pdf',figs_dir, width=6, height=8)
     save_plot(plts[['clustering-silhouettes_vs_stds-scatter']],'clustering-silhouettes_vs_stds-scatter','.png',figs_dir, width=20,height=20)
     save_plot(plts[['clustering-weightS_means_vs_std-violins']],'clustering-weightS_means_vs_std-violins','.pdf',figs_dir, width=4,height=4)
     save_plot(plts[['clustering-weightS_means_vs_std-scatters']],'clustering-weightS_means_vs_std-scatters','.png',figs_dir, width=12,height=12)
@@ -537,6 +579,7 @@ save_plots = function(plts, figs_dir){
     save_plot(plts[['module_comparisons-jaccard']],'module_comparisons-jaccard','.png',figs_dir, width=12, height=12, change_params=FALSE)
     
     save_plot(plts[['mapping_eval-errorplot']],'mapping_eval-errorplot','.pdf', figs_dir, width=6, height=6)
+    save_plot(plts[['mapping_eval-n_components']],'mapping_eval-n_components','.pdf', figs_dir, width=6, height=6)
     
     save_plot(plts[['mapping_robust-violin']],'mapping_robust-violin','.pdf', figs_dir, width=6, height=6)
     

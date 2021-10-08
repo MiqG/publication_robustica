@@ -10,7 +10,7 @@ import argparse
 import os
 import pandas as pd
 import numpy as np
-from sklearn.cluster import AgglomerativeClustering
+from sklearn.cluster import AgglomerativeClustering, DBSCAN
 from sklearn.metrics import silhouette_samples, pairwise_distances
 from memory_profiler import memory_usage
 import time
@@ -28,27 +28,57 @@ MEM_KWS = {
     "include_children": True,
     "retval": True,
 }
-
+METHOD_OI = "DBSCAN"
 ALGORITHMS = {
-    "icasso": {
-        "robust_infer_signs": False,
-        "robust_dimreduce": False,
-        "robust_kws": {"n_clusters": 100},
+    "DBSCAN": {
+        "icasso": {
+            "robust_infer_signs": False,
+            "robust_dimreduce": False,
+            "robust_kws": {},
+        },
+        "robustica_nosign": {
+            "robust_infer_signs": False,
+            "robust_dimreduce": False,
+            "robust_method": "DBSCAN",
+            "robust_kws": {"metric": "euclidean"},
+        },
+        "robustica": {
+            "robust_infer_signs": True,
+            "robust_dimreduce": False,
+            "robust_method": "DBSCAN",
+            "robust_kws": {"metric": "euclidean"},
+        },
+        "robustica_pca": {
+            "robust_infer_signs": True,
+            "robust_dimreduce": True,
+            "robust_method": "DBSCAN",
+            "robust_kws": {"metric": "euclidean"},
+        },
     },
-    "robustica_nosign": {
-        "robust_infer_signs": False,
-        "robust_dimreduce": False,
-        "robust_kws": {"affinity": "euclidean", "linkage": "average"},
-    },
-    "robustica": {
-        "robust_infer_signs": True,
-        "robust_dimreduce": False,
-        "robust_kws": {"affinity": "euclidean", "linkage": "average"},
-    },
-    "robustica_pca": {
-        "robust_infer_signs": True,
-        "robust_dimreduce": True,
-        "robust_kws": {"affinity": "euclidean", "linkage": "average"},
+    "AgglomerativeClustering": {
+        "icasso": {
+            "robust_infer_signs": False,
+            "robust_dimreduce": False,
+            "robust_kws": {"n_clusters": 100},
+        },
+        "robustica_nosign": {
+            "robust_infer_signs": False,
+            "robust_dimreduce": False,
+            "robust_method": "AgglomerativeClustering",
+            "robust_kws": {"affinity": "euclidean", "linkage": "average"},
+        },
+        "robustica": {
+            "robust_infer_signs": True,
+            "robust_dimreduce": False,
+            "robust_method": "AgglomerativeClustering",
+            "robust_kws": {"affinity": "euclidean", "linkage": "average"},
+        },
+        "robustica_pca": {
+            "robust_infer_signs": True,
+            "robust_dimreduce": True,
+            "robust_method": "AgglomerativeClustering",
+            "robust_kws": {"affinity": "euclidean", "linkage": "average"},
+        },
     },
 }
 
@@ -64,7 +94,6 @@ n_components = 100
 algorithms = 'icasso,robustica_pca'.split(',')
 """
 
-
 ##### FUNCTIONS #####
 def load_data(S_all_file, A_all_file):
     """
@@ -79,9 +108,12 @@ def load_data(S_all_file, A_all_file):
 
 class icasso:
     def __init__(self, **kws):
-        self.clustering = AgglomerativeClustering(
-            affinity="precomputed", linkage="average", **kws
-        )
+        if METHOD_OI == "DBSCAN":
+            self.clustering = DBSCAN(metric="precomputed", **kws)
+        elif METHOD_OI == "AgglomerativeClustering":
+            self.clustering = AgglomerativeClustering(
+                affinity="precomputed", linkage="average", **kws
+            )
 
     def compute_distance(self, X):
         return 1 - np.abs(np.corrcoef(X))
@@ -91,7 +123,7 @@ class icasso:
         self.labels_ = self.clustering.labels_
 
 
-ALGORITHMS["icasso"]["robust_method"] = icasso
+ALGORITHMS[METHOD_OI]["icasso"]["robust_method"] = icasso
 
 
 def compute_robust_components(rica):
@@ -271,9 +303,11 @@ def main():
         for it in np.arange(5,iterations+5,5)[::-1]:
             print(it)
 
-            rica_kws = ALGORITHMS[algorithm].copy()
+            rica_kws = ALGORITHMS[METHOD_OI][algorithm].copy()
             rica_kws["n_components"] = n_components
             rica_kws["robust_runs"] = it
+            if METHOD_OI=="DBSCAN":
+                rica_kws["robust_kws"]["min_samples"] = int(it * 0.5)
             rica = RobustICA(**rica_kws)
             rica.S_all = S_all.values[:, : it * n_components]
             rica.A_all = A_all.values[:, : it * n_components]
