@@ -42,7 +42,7 @@ def get_samples_oi(metadata_file, sample_col, subset_col, subset_values):
     return samples_oi
 
 
-def load_data(genexpr_file, metadata_file, sample_col, subset_col, subset_values):
+def load_data(genexpr_file, metadata_file, sample_col, subset_col, subset_values, gene_col, skiprows):
     # get samples
     samples_oi = get_samples_oi(metadata_file, sample_col, subset_col, subset_values)
     samples_avail = get_file_header(genexpr_file)
@@ -50,17 +50,19 @@ def load_data(genexpr_file, metadata_file, sample_col, subset_col, subset_values
 
     # load
     genexpr = pd.read_table(
-        genexpr_file, usecols=["sample"] + common_samples
-    ).set_index("sample")
+        genexpr_file, usecols=[gene_col] + common_samples, skiprows=skiprows
+    ).set_index(gene_col)
     return genexpr
 
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--genexpr_file", type=str)
+    parser.add_argument("--gene_col", type=str, default="sample")
     parser.add_argument("--metadata_file", type=str)
     parser.add_argument("--sample_col", type=str)
     parser.add_argument("--subset_col", type=str)
+    parser.add_argument("--skiprows", type=int, default=0)
     parser.add_argument("--subset_values", type=str)
     parser.add_argument("--output_file", type=str)
 
@@ -77,9 +79,11 @@ def main():
     subset_col = args.subset_col
     subset_values = args.subset_values.split(",")
     output_file = args.output_file
+    gene_col = args.gene_col
+    skiprows = args.skiprows
 
     genexpr = load_data(
-        genexpr_file, metadata_file, sample_col, subset_col, subset_values
+        genexpr_file, metadata_file, sample_col, subset_col, subset_values, gene_col, skiprows
     )
 
     genexpr.to_csv(output_file, **SAVE_PARAMS)

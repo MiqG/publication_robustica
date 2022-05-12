@@ -11,6 +11,7 @@ Outline
 """
 
 import os
+import pandas as pd
 
 ##### VARIABLES #####
 ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
@@ -18,8 +19,19 @@ DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 
-CANCER_TYPES = ['LGG']
+## TCGA
+# select cancer types with at least 200 samples
+MIN_SAMPLES = 200
+metadata = pd.read_table(os.path.join(RAW_DIR,'UCSCXena','TCGA','phenotype','Survival_SupplementalTable_S1_20171025_xena_sp.gz'))
+n_samples = metadata["cancer type abbreviation"].value_counts()
+CANCER_TYPES = n_samples[n_samples >= MIN_SAMPLES].index.to_list()
 
+## GTEx
+metadata = pd.read_table(os.path.join(RAW_DIR,'GTEx','v8','annotations','GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt'))
+n_samples = metadata["SMTS"].str.lower().str.replace(" ","_").value_counts()
+TISSUE_TYPES = n_samples[n_samples >= MIN_SAMPLES].index.to_list()
+
+## Run ICA
 ITERATIONS = 100
 DATASETS = ['Sastry2019','LGG']
 N_COMPONENTS = {
@@ -31,32 +43,35 @@ N_COMPONENTS = {
 rule all:
     input:
         # create metadata
-        [os.path.join(PREP_DIR,'metadata','%s.tsv') % cancer for cancer in CANCER_TYPES],
+        [os.path.join(PREP_DIR,'metadata','TCGA','%s.tsv') % cancer for cancer in CANCER_TYPES],
+        [os.path.join(PREP_DIR,'metadata','GTEx','%s.tsv') % tissue for tissue in TISSUE_TYPES],
         
         # split by cancer type
-        expand(os.path.join(PREP_DIR,'genexpr','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
+        expand(os.path.join(PREP_DIR,'genexpr','TCGA','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
+        # split by tissue type
+        expand(os.path.join(PREP_DIR,'genexpr','GTEx','{tissue}.tsv.gz'), tissue=TISSUE_TYPES),
         
         # prepare Sastry 2019
         os.path.join(PREP_DIR,'genexpr','Sastry2019.tsv.gz'),
         
         # prepare mutations TCGA
-        expand(os.path.join(PREP_DIR,'snv','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
+        expand(os.path.join(PREP_DIR,'snv','TCGA','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
         
         # run ICA multiple times on datasets
-        expand(os.path.join(PREP_DIR,'ica_runs','{dataset}'), dataset=DATASETS),
+        #expand(os.path.join(PREP_DIR,'ica_runs','{dataset}'), dataset=DATASETS),
         
         # compute sample indices
-        expand(os.path.join(PREP_DIR,'sample_indices','{cancer}.tsv'), cancer=CANCER_TYPES)
+        expand(os.path.join(PREP_DIR,'sample_indices','TCGA','{cancer}.tsv'), cancer=CANCER_TYPES)
     
     
-rule prepare_metadata:
+rule prepare_metadata_tcga:
     input:
         clinical = os.path.join(RAW_DIR,'UCSCXena','TCGA','phenotype','TCGA_phenotype_denseDataOnlyDownload.tsv.gz'),
         survival = os.path.join(RAW_DIR,'UCSCXena','TCGA','phenotype','Survival_SupplementalTable_S1_20171025_xena_sp.gz')
     output:
-        [os.path.join(PREP_DIR,'metadata','%s.tsv') % cancer for cancer in CANCER_TYPES]
+        [os.path.join(PREP_DIR,'metadata','TCGA','%s.tsv') % cancer for cancer in CANCER_TYPES]
     params:
-        output_dir = os.path.join(PREP_DIR,'metadata'),
+        output_dir = os.path.join(PREP_DIR,'metadata','TCGA'),
         cancer_types_oi = ','.join(CANCER_TYPES)
     shell:
         """
@@ -68,12 +83,33 @@ rule prepare_metadata:
         """
         
         
-rule prepare_genexpr:
+rule prepare_metadata_gtex:
+    input:
+        annot = os.path.join(RAW_DIR,'GTEx','v8','annotations','GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt')
+    output:
+        annots = [os.path.join(PREP_DIR,'metadata','GTEx','%s.tsv') % tissue for tissue in TISSUE_TYPES]
+    run:
+        import os
+        import pandas as pd
+        
+        metadata = pd.read_table(input.annot)
+        metadata["sampleID"] = metadata["SAMPID"]
+        metadata["tissue_type"] = metadata["SMTS"].str.lower().str.replace(" ","_")
+        
+        for f in output.annots:
+            tissue = os.path.basename(f).replace(".tsv","")
+            df = metadata.loc[metadata["tissue_type"]==tissue]
+            df.to_csv(f, sep="\t", index=False)
+        
+        print("Done!")
+        
+        
+rule prepare_genexpr_tcga:
     input:
         genexpr = os.path.join(RAW_DIR,'UCSCXena','TCGA','rnaseq','AdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.xena.gz'),
-        metadata = os.path.join(PREP_DIR,'TCGA','metadata','PANCAN.tsv')
+        metadata = os.path.join(PREP_DIR,'metadata','TCGA','{cancer}.tsv')
     output:
-        os.path.join(PREP_DIR,'genexpr','{cancer}.tsv.gz')
+        os.path.join(PREP_DIR,'genexpr','TCGA','{cancer}.tsv.gz')
     params:
         sample_col = 'sampleID',
         subset_col = 'cancer_type',
@@ -87,6 +123,32 @@ rule prepare_genexpr:
                     --subset_col={params.subset_col} \
                     --subset_values={params.subset_values} \
                     --output_file={output}
+        """
+        
+        
+rule prepare_genexpr_gtex:
+    input:
+        genexpr = os.path.join(RAW_DIR,'GTEx','v8','rnaseq','GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_tpm.gct.gz'),
+        metadata = os.path.join(PREP_DIR,'metadata','GTEx','{tissue}.tsv')
+    output:
+        os.path.join(PREP_DIR,'genexpr','GTEx','{tissue}.tsv.gz')
+    params:
+        sample_col = 'sampleID',
+        subset_col = 'tissue_type',
+        subset_values = '{tissue}',
+        gene_col = "Description",
+        skiprows = 2
+    shell:
+        """
+        python scripts/prepare_genexpr.py \
+                    --genexpr_file={input.genexpr} \
+                    --metadata_file={input.metadata} \
+                    --sample_col={params.sample_col} \
+                    --subset_col={params.subset_col} \
+                    --subset_values={params.subset_values} \
+                    --output_file={output} \
+                    --gene_col={params.gene_col} \
+                    --skiprows={params.skiprows}
         """
         
         
@@ -151,12 +213,12 @@ rule compute_ica_runs:
         
 rule compute_sample_indices:
     input:
-        os.path.join(PREP_DIR,'genexpr','{cancer}.tsv.gz')
+        os.path.join(PREP_DIR,'genexpr','TCGA','{cancer}.tsv.gz')
     output:
-        os.path.join(PREP_DIR,'sample_indices','{cancer}.tsv')
+        os.path.join(PREP_DIR,'sample_indices','TCGA','{cancer}.tsv')
     shell:
         """
-        python scripts/compute_sample_indices.py \
+        nice python scripts/compute_sample_indices.py \
                     --genexpr_file={input} \
                     --output_file={output}
         """
