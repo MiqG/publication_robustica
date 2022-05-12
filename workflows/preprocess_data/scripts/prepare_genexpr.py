@@ -21,17 +21,27 @@ import os
 ROOT = '/home/miquel/projects/publication_robustica'
 DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
+PREP_DIR= os.path.join(DATA_DIR,'prep')
+
 genexpr_file = os.path.join(RAW_DIR,'UCSCXena','TCGA','rnaseq','AdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.xena.gz')
 metadata_file = os.path.join(DATA_DIR,'prep','TCGA','metadata','PANCAN.tsv')
 sample_col = 'sampleID'
 subset_col = 'cancer_type'
 subset_values = 'BRCA'.split(',')
+
+genexpr_file = os.path.join(RAW_DIR,'GTEx','v8','rnaseq','GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_tpm.gct.gz')
+metadata_file = os.path.join(PREP_DIR,'metadata','GTEx','muscle.tsv')
+sample_col = 'sampleID'
+subset_col = 'tissue_type'
+subset_values = 'muscle'.split(",")
+gene_col = "Description"
+skiprows = 2
 """
 
 ##### FUNCTIONS #####
-def get_file_header(file, nrows=1):
+def get_file_header(file, skiprows=0, nrows=1):
     """returns the first line of a file"""
-    return list(pd.read_table(file, nrows=nrows).columns)
+    return list(pd.read_table(file, nrows=nrows, skiprows=skiprows).columns)
 
 
 def get_samples_oi(metadata_file, sample_col, subset_col, subset_values):
@@ -45,7 +55,7 @@ def get_samples_oi(metadata_file, sample_col, subset_col, subset_values):
 def load_data(genexpr_file, metadata_file, sample_col, subset_col, subset_values, gene_col, skiprows):
     # get samples
     samples_oi = get_samples_oi(metadata_file, sample_col, subset_col, subset_values)
-    samples_avail = get_file_header(genexpr_file)
+    samples_avail = get_file_header(genexpr_file, skiprows)
     common_samples = list(set(samples_oi).intersection(samples_avail))
 
     # load

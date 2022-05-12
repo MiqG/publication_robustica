@@ -33,10 +33,12 @@ TISSUE_TYPES = n_samples[n_samples >= MIN_SAMPLES].index.to_list()
 
 ## Run ICA
 ITERATIONS = 100
-DATASETS = ['Sastry2019','LGG']
-N_COMPONENTS = {
-    'Sastry2019': 100,
-    'LGG': 100
+N_COMPONENTS = 100
+
+DATASETS = {
+    **{'Sastry2019': os.path.join(PREP_DIR,'genexpr','Sastry2019.tsv.gz')},
+    **{cancer: os.path.join(PREP_DIR,'genexpr','TCGA','%s.tsv.gz') % cancer for cancer in CANCER_TYPES},
+    **{tissue: os.path.join(PREP_DIR,'genexpr','GTEx','%s.tsv.gz') % tissue for tissue in TISSUE_TYPES}
 }
 
 ##### RULES #####
@@ -58,7 +60,7 @@ rule all:
         expand(os.path.join(PREP_DIR,'snv','TCGA','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
         
         # run ICA multiple times on datasets
-        #expand(os.path.join(PREP_DIR,'ica_runs','{dataset}'), dataset=DATASETS),
+        expand(os.path.join(PREP_DIR,'ica_runs','{dataset}'), dataset=DATASETS.keys()),
         
         # compute sample indices
         expand(os.path.join(PREP_DIR,'sample_indices','TCGA','{cancer}.tsv'), cancer=CANCER_TYPES)
@@ -190,15 +192,18 @@ rule compute_gene_mutation_frequency_tcga:
         
 rule compute_ica_runs:
     input:
-        lambda wildcards: os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz')
+        lambda wildcards: DATASETS[wildcards.dataset]
     output:
         directory(os.path.join(PREP_DIR,'ica_runs','{dataset}')),
         S = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
         A = os.path.join(PREP_DIR,'ica_runs','{dataset}','A.pickle.gz')
     params:
-        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset],
+        n_components = N_COMPONENTS,
         iterations = ITERATIONS
     threads: 15
+    resources:
+        runtime = 3600*24, # 24h
+        memory = 30 # GB
     shell:
         """
         python scripts/compute_ica_runs.py \
