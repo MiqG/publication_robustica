@@ -30,10 +30,10 @@ subset_col = 'cancer_type'
 subset_values = 'BRCA'.split(',')
 
 genexpr_file = os.path.join(RAW_DIR,'GTEx','v8','rnaseq','GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_tpm.gct.gz')
-metadata_file = os.path.join(PREP_DIR,'metadata','GTEx','muscle.tsv')
+metadata_file = os.path.join(PREP_DIR,'metadata','GTEx','bone_marrow.tsv')
 sample_col = 'sampleID'
 subset_col = 'tissue_type'
-subset_values = 'muscle'.split(",")
+subset_values = 'bone_marrow'.split(",")
 gene_col = "Description"
 skiprows = 2
 """
