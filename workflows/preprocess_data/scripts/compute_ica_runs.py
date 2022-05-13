@@ -31,6 +31,9 @@ def process_inputs(input_file, transpose):
     # load
     X = pd.read_table(input_file, index_col=0)
 
+    # drop genes with missing values
+    X = X.loc[~X.isnull().any(axis=1)]
+    
     # drop genes with no variation
     X = X.loc[X.std(1) > 0]
 
