@@ -30,6 +30,7 @@ CANCER_TYPES = n_samples[n_samples >= MIN_SAMPLES].index.to_list()
 metadata = pd.read_table(os.path.join(RAW_DIR,'GTEx','v8','annotations','GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt'))
 n_samples = metadata["SMTS"].str.lower().str.replace(" ","_").value_counts()
 TISSUE_TYPES = n_samples[n_samples >= MIN_SAMPLES].index.to_list()
+TISSUE_TYPES.remove("bone_marrow") # bone marrow identifiers not found in gene expression matrix
 
 ## Run ICA
 ITERATIONS = 100

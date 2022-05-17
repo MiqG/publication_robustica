@@ -38,7 +38,7 @@ RICA_KWS = {
         "AgglomerativeClustering": {
             "robust_kws": {"affinity": "precomputed", "linkage": "average"},
         },
-        "AffinityPropagation": {"robust_kws": {"affinity": "precomputed"}},
+        "AffinityPropagation": {"robust_kws": {"affinity": "precomputed"}}, # the higher the more similar (not distant)
         "DBSCAN": {"robust_kws": {"metric": "precomputed"}},
         "FeatureAgglomeration": {"robust_kws": {"affinity": "precomputed", "linkage":"average"}},
         "OPTICS": {"robust_kws": {"metric": "precomputed"}},
@@ -58,7 +58,7 @@ S_all_file = os.path.join(PREP_DIR,'ica_runs','Sastry2019','S.pickle.gz')
 A_all_file = os.path.join(PREP_DIR,'ica_runs','Sastry2019','A.pickle.gz')
 iterations = 100
 property_type = 'methods'
-properties_oi = 'AgglomerativeClustering'.split(',')
+properties_oi = 'AffinityPropagation'.split(',')
 """
 
 
@@ -71,8 +71,16 @@ def load_data(
     A_all = pd.read_pickle(A_all_file)
 
     return S_all, A_all
+    
 
-
+def compute_pearson_affinity(X):
+    print("using custom affinity")
+    # similarly to negative euclidean distance
+    D = np.clip(((-1)*np.abs(np.corrcoef(X.T))), -1, 0)
+    return D
+RICA_KWS["methods"]["AffinityPropagation"]["robust_precompdist_func"] = compute_pearson_affinity
+    
+    
 def compute_robust_components(rica):
     mem = {}
     t = {}

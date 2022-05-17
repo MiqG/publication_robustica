@@ -40,21 +40,71 @@ RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','benchmark_clustering')
 
+# variables
+CANCER_TYPES = [
+    'BRCA',
+    'KIRC',
+    'LUAD',
+    'LUSC',
+    'OV',
+    'HNSC',
+    'GBM',
+    'UCEC',
+    #'THCA', # (Did not converge in AffinityPropagation)
+    'PRAD',
+    'COAD',
+    'LGG',
+    'STAD',
+    'SKCM',
+    'LIHC',
+    'BLCA',
+    'KIRP',
+    'CESC',
+    'SARC',
+    'ESCA',
+    #'LAML' # (Did not converge in AffinityPropagation)
+]
+
+
+TISSUE_TYPES = [
+    'blood',
+    #'brain', # (Did not converge in AffinityPropagation)
+    'skin',
+    'esophagus',
+    'blood_vessel',
+    #'adipose_tissue', # (Did not converge in AffinityPropagation)
+    'heart',
+    'muscle',
+    'lung',
+    #'colon', # (Did not converge in AffinityPropagation)
+    'thyroid',
+    'nerve',
+    'breast',
+    'testis',
+    #'stomach', # (Did not converge in AffinityPropagation)
+    #'pancreas', # (Did not converge in AffinityPropagation)
+    'pituitary',
+    #'adrenal_gland', # (Did not converge in AffinityPropagation)
+    #'prostate', # (Did not converge in AffinityPropagation)
+    'spleen',
+    'liver'
+]
+
+
 SAVE_PARAMS = {"sep": "\t", "index": False, "compression": "gzip"}
 
 PROPERTIES_OI = {
     'metrics' : ['euclidean','l1','l2','manhattan','cosine','precomputed'],
     'methods' : [
-        'AgglomerativeClustering','AffinityPropagation','DBSCAN','OPTICS',
-        'KMedoids','CommonNNClustering'
+        'AgglomerativeClustering','AffinityPropagation',
+        'DBSCAN','OPTICS','KMedoids','CommonNNClustering'
     ] 
 }
 
 ITERATIONS = 100
-DATASETS = ['Sastry2019']
-N_COMPONENTS = {
-    'Sastry2019': 100
-}
+N_COMPONENTS = 100
+
+DATASETS = ['Sastry2019'] + CANCER_TYPES + TISSUE_TYPES
 
 #### RULES ####
 rule all:
@@ -63,8 +113,9 @@ rule all:
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','methods','{property_oi}','performance_evaluation.tsv.gz'),
                property_oi=PROPERTIES_OI['methods'],dataset=DATASETS),
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','methods','performance_evaluation_merged.tsv.gz'), dataset=DATASETS),
+        
         # make figures 
-        expand(os.path.join(RESULTS_DIR,'figures','{dataset}','{property_type}'),dataset=DATASETS,property_type=['methods'])
+        expand(os.path.join(RESULTS_DIR,'figures','{dataset}','{property_type}'), dataset=["Sastry2019"], property_type=['methods'])
     
     
 rule evaluate_clustering_algorithms:
@@ -78,6 +129,10 @@ rule evaluate_clustering_algorithms:
         property_type = 'methods',
         properties_oi = '{property_oi}',
         iterations = ITERATIONS
+    threads: 1
+    resources:
+        runtime = 3600*6, # 6h
+        memory = 16 # GB
     shell:
         """
         python scripts/evaluate_clustering.py \
@@ -107,6 +162,10 @@ rule merge_clustering_algorithms:
     output:
         performance = os.path.join(RESULTS_DIR,'files','{dataset}','methods','performance_evaluation_merged.tsv.gz'),
         clustering = os.path.join(RESULTS_DIR,'files','{dataset}','methods','clustering_info_merged.tsv.gz')
+    threads: 1
+    resources:
+        runtime = int(3600*0.5), # 0.5h
+        memory = 6 # GB
     run:
         import pandas as pd
         for key, filenames in input.items():
