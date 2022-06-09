@@ -76,7 +76,8 @@ def load_data(
 def compute_pearson_affinity(X):
     print("using custom affinity")
     # similarly to negative euclidean distance
-    D = np.clip(((-1)*np.abs(np.corrcoef(X.T))), -1, 0)
+    D = np.clip((1 - np.abs(np.corrcoef(X.T))), 0, 1)
+    D = (-1) * D
     return D
 RICA_KWS["methods"]["AffinityPropagation"]["robust_precompdist_func"] = compute_pearson_affinity
     
@@ -188,11 +189,19 @@ def evaluate_performance(rica):
         * clustering_info["sign"].values
         * clustering_info["orientation"].values
     ).T
-    clustering_info["silhouette_euclidean"] = silhouette_samples(X, labels)
+    try:
+        clustering_info["silhouette_euclidean"] = silhouette_samples(X, labels)
+    except:
+        clustering_info["silhouette_euclidean"] = np.nan
+        
     D = 1 - np.abs(np.corrcoef(rica.S_all.T))
-    clustering_info["silhouette_pearson"] = silhouette_samples(
-        D, labels, metric="precomputed"
-    )
+    try:
+        clustering_info["silhouette_pearson"] = silhouette_samples(
+            D, labels, metric="precomputed"
+        )
+    except:    
+        clustering_info["silhouette_pearson"] = np.nan
+        
     clustering_info = pd.merge(
         clustering_info, compute_iq(X, labels), on="cluster_id"
     )
