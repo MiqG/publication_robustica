@@ -58,7 +58,7 @@ S_all_file = os.path.join(PREP_DIR,'ica_runs','Sastry2019','S.pickle.gz')
 A_all_file = os.path.join(PREP_DIR,'ica_runs','Sastry2019','A.pickle.gz')
 iterations = 100
 property_type = 'methods'
-properties_oi = 'AffinityPropagation'.split(',')
+properties_oi = 'OPTICS'.split(',')
 """
 
 

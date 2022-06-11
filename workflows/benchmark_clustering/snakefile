@@ -50,7 +50,7 @@ CANCER_TYPES = [
     'HNSC',
     'GBM',
     'UCEC',
-    #'THCA', # (Did not converge in AffinityPropagation)
+    'THCA', # (Did not converge in AffinityPropagation)
     'PRAD',
     'COAD',
     'LGG',
@@ -62,30 +62,30 @@ CANCER_TYPES = [
     'CESC',
     'SARC',
     'ESCA',
-    #'LAML' # (Did not converge in AffinityPropagation)
+    'LAML' 
 ]
 
 
 TISSUE_TYPES = [
     'blood',
-    #'brain', # (Did not converge in AffinityPropagation)
+    'brain', 
     'skin',
     'esophagus',
     'blood_vessel',
-    #'adipose_tissue', # (Did not converge in AffinityPropagation)
+    'adipose_tissue', 
     'heart',
     'muscle',
     'lung',
-    #'colon', # (Did not converge in AffinityPropagation)
+    'colon', 
     'thyroid',
     'nerve',
     'breast',
     'testis',
-    #'stomach', # (Did not converge in AffinityPropagation)
-    #'pancreas', # (Did not converge in AffinityPropagation)
+    'stomach', 
+    'pancreas', 
     'pituitary',
-    #'adrenal_gland', # (Did not converge in AffinityPropagation)
-    #'prostate', # (Did not converge in AffinityPropagation)
+    'adrenal_gland', 
+    'prostate', 
     'spleen',
     'liver'
 ]
@@ -110,12 +110,16 @@ DATASETS = ['Sastry2019'] + CANCER_TYPES + TISSUE_TYPES
 rule all:
     input:
         # evaluate clustering algorithms
-        expand(os.path.join(RESULTS_DIR,'files','{dataset}','methods','{property_oi}','performance_evaluation.tsv.gz'),
-               property_oi=PROPERTIES_OI['methods'],dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','methods','{property_oi}','performance_evaluation.tsv.gz'), property_oi=PROPERTIES_OI['methods'], dataset=DATASETS),
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','methods','performance_evaluation_merged.tsv.gz'), dataset=DATASETS),
+        os.path.join(RESULTS_DIR,'files','clustering_performance_evaluation_merged.tsv.gz'),
+        
+        # perform PCA
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','pca','components.tsv.gz'), dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','pca','explained_variance.tsv.gz'), dataset=DATASETS),
         
         # make figures 
-        expand(os.path.join(RESULTS_DIR,'figures','{dataset}','{property_type}'), dataset=["Sastry2019"], property_type=['methods'])
+        #expand(os.path.join(RESULTS_DIR,'figures','{dataset}','{property_type}'), dataset=["Sastry2019"], property_type=['methods'])
     
     
 rule evaluate_clustering_algorithms:
@@ -135,7 +139,7 @@ rule evaluate_clustering_algorithms:
         memory = 16 # GB
     shell:
         """
-        python scripts/evaluate_clustering.py \
+        nice python scripts/evaluate_clustering.py \
                     --S_all_file={input.S} \
                     --A_all_file={input.A} \
                     --property_type={params.property_type} \
@@ -150,15 +154,13 @@ rule merge_clustering_algorithms:
         performance = [
             os.path.join(RESULTS_DIR,'files','{dataset}','methods',
                          '{property_oi}','performance_evaluation.tsv.gz'
-                        ).format(property_oi=property_oi, dataset=dataset) 
-         for property_oi in PROPERTIES_OI['methods'] 
-         for dataset in DATASETS],
+                        ).format(property_oi=property_oi, dataset="{dataset}") 
+         for property_oi in PROPERTIES_OI['methods']],
         clustering = [
             os.path.join(RESULTS_DIR,'files','{dataset}','methods',
                          '{property_oi}','clustering_info.tsv.gz'
-                        ).format(property_oi=property_oi, dataset=dataset) 
-         for property_oi in PROPERTIES_OI['methods'] 
-         for dataset in DATASETS]
+                        ).format(property_oi=property_oi, dataset="{dataset}") 
+         for property_oi in PROPERTIES_OI['methods']]
     output:
         performance = os.path.join(RESULTS_DIR,'files','{dataset}','methods','performance_evaluation_merged.tsv.gz'),
         clustering = os.path.join(RESULTS_DIR,'files','{dataset}','methods','clustering_info_merged.tsv.gz')
@@ -167,13 +169,69 @@ rule merge_clustering_algorithms:
         runtime = int(3600*0.5), # 0.5h
         memory = 6 # GB
     run:
+        import os
         import pandas as pd
         for key, filenames in input.items():
-            df = pd.concat([pd.read_table(filename) for filename in filenames])
+            df = pd.concat([
+                pd.read_table(
+                    filename
+                 ).assign(dataset = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(filename)))))
+                 for filename in filenames])
             df.to_csv(output[key], **SAVE_PARAMS)
         print('Done!')
         
         
+        
+rule merge_clustering_across_datasets:
+    input:
+        performance = [os.path.join(RESULTS_DIR,'files','{dataset}','methods','performance_evaluation_merged.tsv.gz').format(dataset=dataset) for dataset in DATASETS],
+        clustering = [os.path.join(RESULTS_DIR,'files','{dataset}','methods','clustering_info_merged.tsv.gz').format(dataset=dataset) for dataset in DATASETS]
+    output:
+        performance = os.path.join(RESULTS_DIR,'files','clustering_performance_evaluation_merged.tsv.gz'),
+        clustering = os.path.join(RESULTS_DIR,'files','clustering_info_merged.tsv.gz')
+    run:
+        import pandas as pd
+        for key, filenames in input.items():
+            df = pd.concat([ pd.read_table(filename) for filename in filenames ])
+            df.to_csv(output[key], **SAVE_PARAMS)
+        print('Done!')
+        
+        
+rule pca_ica_runs:
+    input:
+        S = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz')
+    output:
+        components = os.path.join(RESULTS_DIR,'files','{dataset}','pca','components.tsv.gz'),
+        explained_variance = os.path.join(RESULTS_DIR,'files','{dataset}','pca','explained_variance.tsv.gz')
+    params:
+        n_components = 10
+    run:
+        import pandas as pd
+        from sklearn.decomposition import PCA
+        
+        # unpack parameters
+        n_components = params.n_components
+        
+        # run PCA
+        X = pd.read_pickle(input.S)
+        pca = PCA(n_components = n_components)
+        pca.fit(X)
+        
+        # prepare outputs
+        components = pd.DataFrame(pca.components_,
+                                  index = ["PC%s" % (comp+1) for comp in range(n_components)],
+                                  columns = X.columns).T
+        explained_variance = pd.DataFrame({
+            "component": ["PC%s" % (comp+1) for comp in range(n_components)],
+            "explained_variance_ratio": pca.explained_variance_ratio_
+        })
+        
+        # save
+        components.to_csv(output.components, sep="\t", index=False, compression="gzip")
+        explained_variance.to_csv(output.explained_variance, sep="\t", index=False, compression="gzip")
+        
+        
+    
 rule figures_benchmark_clustering:
     input:
         performance = os.path.join(RESULTS_DIR,'files','{dataset}','{property_type}','performance_evaluation_merged.tsv.gz'),
