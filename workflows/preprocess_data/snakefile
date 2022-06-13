@@ -18,6 +18,7 @@ ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
 DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
+RESULTS_DIR = os.path.join(ROOT,'results')
 
 ## TCGA
 # select cancer types with at least 200 samples
@@ -51,6 +52,7 @@ rule all:
         
         # split by cancer type
         expand(os.path.join(PREP_DIR,'genexpr','TCGA','{cancer}.tsv.gz'), cancer=CANCER_TYPES),
+        
         # split by tissue type
         expand(os.path.join(PREP_DIR,'genexpr','GTEx','{tissue}.tsv.gz'), tissue=TISSUE_TYPES),
         
@@ -64,7 +66,10 @@ rule all:
         expand(os.path.join(PREP_DIR,'ica_runs','{dataset}'), dataset=DATASETS.keys()),
         
         # compute sample indices
-        expand(os.path.join(PREP_DIR,'sample_indices','TCGA','{cancer}.tsv'), cancer=CANCER_TYPES)
+        expand(os.path.join(PREP_DIR,'sample_indices','TCGA','{cancer}.tsv'), cancer=CANCER_TYPES),
+        
+        # count samples in datasets
+        os.path.join(RESULTS_DIR,'preprocess_data','files','dataset_info.tsv')
     
     
 rule prepare_metadata_tcga:
@@ -229,3 +234,31 @@ rule compute_sample_indices:
                     --output_file={output}
         """
         
+        
+rule count_samples:
+    input:
+        datasets = [DATASETS[dataset] for dataset in DATASETS.keys()]
+    output:
+        os.path.join(RESULTS_DIR,'preprocess_data','files','dataset_info.tsv')
+    run:
+        import os
+        import pandas as pd
+        
+        dataset_info = []
+        for filename in input.datasets:
+            print(filename)
+            
+            df = pd.read_table(filename, index_col=0)
+            
+            dataset_info.append({
+                "dataset": os.path.basename(filename).replace(".tsv.gz",""),
+                "main": os.path.basename(os.path.dirname(filename)) if "Sastry" not in filename else os.path.basename(filename).replace(".tsv.gz",""),
+                "n_samples": df.shape[1],
+                "n_genes": df.shape[0]
+            })
+            
+            del df
+            
+        dataset_info = pd.DataFrame(dataset_info)
+        
+        dataset_info.to_csv(output[0], sep="\t", index=False)
