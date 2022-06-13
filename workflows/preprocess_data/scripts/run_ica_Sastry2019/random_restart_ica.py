@@ -86,7 +86,8 @@ t = time.time()
     
 # -----------------------------------------------------------
 # Load Data
-DF_data = pd.read_csv(x_file,index_col=0)
+#DF_data = pd.read_csv(x_file,index_col=0)
+DF_data = pd.read_table(x_file,index_col=0)
 X = DF_data
 n_genes,m_samples = X.shape
 

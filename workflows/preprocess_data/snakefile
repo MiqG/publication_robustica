@@ -69,7 +69,10 @@ rule all:
         expand(os.path.join(PREP_DIR,'sample_indices','TCGA','{cancer}.tsv'), cancer=CANCER_TYPES),
         
         # count samples in datasets
-        os.path.join(RESULTS_DIR,'preprocess_data','files','dataset_info.tsv')
+        os.path.join(RESULTS_DIR,'preprocess_data','files','dataset_info.tsv'),
+        
+        # run Sastry's ICA pipeline
+        os.path.join(PREP_DIR,'original_pipeline_Sastry2019')
     
     
 rule prepare_metadata_tcga:
@@ -262,3 +265,46 @@ rule count_samples:
         dataset_info = pd.DataFrame(dataset_info)
         
         dataset_info.to_csv(output[0], sep="\t", index=False)
+        
+        
+rule run_original_pipeline_Sastry2019:
+    input:
+        genexpr = os.path.join(PREP_DIR,'genexpr','Sastry2019.tsv.gz')
+    output:
+        directory(os.path.join(PREP_DIR,'original_pipeline_Sastry2019'))
+    params:
+        scripts_dir = os.path.join("scripts","run_ica_Sastry2019"),
+        iterations = ITERATIONS,
+        tolerance = 1e-4, # default FastICA tolerance (changed from Sastry2019)
+        n_components = N_COMPONENTS,
+        dist = 0.5, # default DBSCAN eps (changed from Sastry2019)
+        min_frac = 0.5 # scaling factor to define DBSCAN's min_samples
+    threads: 14
+    shell:
+        """
+        set -eo pipefail
+        
+        nice mpiexec -n {threads} python {params.scripts_dir}/random_restart_ica.py \
+                    -f {input.genexpr} \
+                    -i {params.iterations} \
+                    -t {params.tolerance} \
+                    -o {output}
+                                  
+        echo "Done! (random restart)"
+        
+        
+        nice mpiexec -n {threads} python {params.scripts_dir}/compute_distance.py \
+                    -i {params.iterations} \
+                    -o {output}
+                    
+        echo "Done! (compute distance)"
+        
+        
+        nice mpiexec -n {threads} python {params.scripts_dir}/cluster_components.py \
+                    -i {params.iterations} \
+                    -d {params.dist} \
+                    -m {params.min_frac} \
+                    -o {output}
+                    
+        echo "Done! (cluster components)"
+        """
