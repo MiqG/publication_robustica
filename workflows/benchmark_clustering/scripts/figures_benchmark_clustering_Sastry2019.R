@@ -65,14 +65,15 @@ plot_performance_profile = function(performance){
 }
 
 
-plot_silhouettes = function(df, lab='', labsize=0.1){
-    X = df %>% 
+plot_silhouettes = function(clustering, lab='', labsize=0.1){
+    X = clustering %>% 
         dplyr::select(cluster_id, property_oi, time, 
                       max_memory, silhouette_euclidean) %>%
         melt(id.vars = c('cluster_id','property_oi','time','max_memory')) %>%
         mutate(time=as.numeric(time)) %>%
         group_by(property_oi, time, max_memory, cluster_id) %>%
-        summarize(value=mean(value)) %>% # keep the mean silhouette per cluster
+        summarize(value=mean(value), # keep the mean silhouette per cluster
+                  n = n()) %>% 
         ungroup()
     
     palette = get_palette('Paired',length(unique(X[['property_oi']])))
@@ -104,7 +105,22 @@ plot_silhouettes = function(df, lab='', labsize=0.1){
                   palette=palette) +
         labs(x='Time (s)', y='Max. Memory (MiB)', size='Silhouette Score') +
         guides(color="none")
-
+    
+    # silhouettes vs n components in cluster
+    x = X %>%
+        group_by(property_oi) %>%
+        mutate(property_lab = paste0(property_oi," | n=",n())) %>%
+        ungroup()
+    plts[["silhouettes_vs_n_components"]] = x %>%
+        ggplot(aes(x=n, y=value)) +
+        geom_scattermore(pixels=c(1000,1000), pointsize=10, alpha=0.5) +
+        geom_text_repel(aes(label=cluster_id), x %>% filter(n>300)) +
+        facet_wrap(~property_lab) +
+        theme(strip.text.x = element_text(size=6, family=FONT_FAMILY)) +
+        labs(x="Cluster Size", y="Silhouette Score") +
+        theme_pubr()
+    
+    
     names(plts) = paste0(lab, names(plts))
     return(plts)
 }
@@ -115,9 +131,12 @@ plot_pca = function(pca_components, clustering){
     
     X = clustering %>% 
         distinct(component, cluster_id, property_oi) %>% 
-        mutate(component = paste0("comp",component),
+        group_by(property_oi, cluster_id) %>%
+        mutate(cluster_size = n(),
+               component = paste0("comp",component),
                cluster_id = paste0("clust",cluster_id),
-               is_noise = cluster_id == "clust-1") %>%
+               is_noise = (cluster_id == "clust-1") | (cluster_size>300)) %>%
+        ungroup() %>%
         left_join(pca_components, 
                   by="component") %>%
         arrange(component)
@@ -133,11 +152,12 @@ plot_pca = function(pca_components, clustering){
         x = X %>%
             filter(property_oi == property)
         
-        palette = get_palette("Paired", length(unique(x[["cluster_id"]])))
-        is_noise = x[["cluster_id"]] == "clust-1"
-        if (any(is_noise)) {palette[1] = "black"}
+        cluster_ids = unique(x[["cluster_id"]])
+        palette = setNames(get_palette("Paired", length(cluster_ids)), cluster_ids)
+        is_noise = x %>% filter(is_noise) %>% pull(cluster_id) %>% unique()
+        palette[is_noise] = "black"
         
-        clean_clusters = setdiff(unique(x[["cluster_id"]]),"clust-1")
+        clean_clusters = setdiff(cluster_ids, is_noise)
         
         plts[[sprintf("clustering_pca-%s",property)]] = x %>%
             ggplot(aes(x=PC1, y=PC2)) + 
@@ -148,7 +168,7 @@ plot_pca = function(pca_components, clustering){
             theme(aspect.ratio = 1) +
             theme_pubr() +
             labs(title=sprintf("%s | n. clusters=%s | n. noisy=%s", 
-                               property, length(clean_clusters), sum(is_noise)))
+                               property, length(clean_clusters), sum(x[["is_noise"]])))
         
     }
     

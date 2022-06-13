@@ -16,11 +16,9 @@
 require(tidyverse)
 require(ggpubr)
 require(cowplot)
-require(reshape2)
 require(ggrepel)
 require(writexl)
 require(extrafont)
-require(scattermore)
 
 ROOT = here::here()
 source(file.path(ROOT,'src','R','utils.R'))
@@ -28,9 +26,67 @@ source(file.path(ROOT,'src','R','utils.R'))
 # variables
 FONT_FAMILY = "Arial"
 PAL_ALGOS = setNames(get_palette("Paired",6),
-                     c("AffinityPropagation", "AgglomerativeClustering",
-                       "CommonNNClustering", "DBSCAN",
-                       "KMedoids", "OPTICS"))
+                     c("AffinityPropagation", "AgglomerativeClustering","CommonNNClustering",
+                       "DBSCAN","KMedoids", "OPTICS"))
+
+DATASETS_REF = rbind(
+    data.frame(
+        main = "",
+        dataset = "Sastry2019"
+    ),
+    data.frame(
+        main = "TCGA",
+        dataset = c(
+        'BRCA',
+        'KIRC',
+        'LUAD',
+        'LUSC',
+        'OV',
+        'HNSC',
+        'GBM',
+        'UCEC',
+        'THCA',
+        'PRAD',
+        'COAD',
+        'LGG',
+        'STAD',
+        'SKCM',
+        'LIHC',
+        'BLCA',
+        'KIRP',
+        'CESC',
+        'SARC',
+        'ESCA',
+        'LAML'
+        )
+    ),
+    data.frame(
+        main = "GTEx",
+        dataset = c(
+            'blood',
+            'brain', 
+            'skin',
+            'esophagus',
+            'blood_vessel',
+            'adipose_tissue', 
+            'heart',
+            'muscle',
+            'lung',
+            'colon', 
+            'thyroid',
+            'nerve',
+            'breast',
+            'testis',
+            'stomach', 
+            'pancreas', 
+            'pituitary',
+            'adrenal_gland', 
+            'prostate', 
+            'spleen',
+            'liver'
+        )
+    )
+)
 
 # Development
 # -----------
@@ -46,6 +102,17 @@ plot_clustering_eda = function(clustering){
     
     plts = list()
     
+    # how many components per cluster does each algorithm find?
+    plts[["clustering_eda-components_per_cluster"]] = X %>%
+        count(dataset, property_oi, cluster_id) %>%
+        ggboxplot(x="dataset", y="n", fill="property_oi", 
+                  palette=PAL_ALGOS, outlier.size=0.1) +
+        facet_wrap(~property_oi, scales="free_x") +
+        theme(strip.text.x = element_text(size=6, family=FONT_FAMILY)) +
+        guides(fill="none") +
+        labs(x="Dataset", y="N. Independent Components per Cluster") +
+        coord_flip()
+    
     # how many clusters per dataset and algorithm were found?
     plts[["clustering_eda-cluster_count"]] = X %>%
         distinct(dataset, property_oi, cluster_id) %>%
@@ -58,6 +125,7 @@ plot_clustering_eda = function(clustering){
         labs(x="Dataset", y="N. Robust Independent Components") +
         coord_flip()
     
+    # how many components were assigned as noisy?
     plts[["clustering_eda-noisy_count"]] = X %>%
         distinct(dataset, property_oi, component, cluster_id) %>%
         mutate(is_noisy = as.factor(cluster_id == -1)) %>%
@@ -69,6 +137,7 @@ plot_clustering_eda = function(clustering){
         labs(x="Dataset", y="N. Independent Components", fill="Is Noisy") +
         coord_flip()
         
+    # time and memory to cluster
     plts[["clustering_eda-time"]] = X %>%
         distinct(property_oi, time, dataset) %>%
         ggplot(aes(x=property_oi, y=time)) +
@@ -207,6 +276,7 @@ save_plt = function(plts, plt_name, extension=".pdf",
 
 
 save_plots = function(plts, figs_dir){
+    save_plt(plts, 'clustering_eda-components_per_cluster','.pdf',figs_dir, width=10, height=8)
     save_plt(plts, 'clustering_eda-cluster_count','.pdf',figs_dir, width=10, height=8)
     save_plt(plts, 'clustering_eda-noisy_count','.pdf',figs_dir, width=10, height=8)
     save_plt(plts, 'clustering_eda-time','.pdf',figs_dir, width=10, height=8)
@@ -271,6 +341,11 @@ main = function(){
     clustering = clustering %>%
         left_join(clustering_time, by=c('dataset','property_oi')) %>%
         left_join(max_memory, by=c('dataset','property_oi'))
+    
+    ## beautify names
+    clustering = clustering %>%
+        left_join(DATASETS_REF, by="dataset") %>%
+        mutate(dataset = sprintf("%s | %s", main, dataset))
     
     plts = make_plots(performance, clustering)
     figdata = make_figdata(performance, clustering)

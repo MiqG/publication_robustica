@@ -50,7 +50,7 @@ CANCER_TYPES = [
     'HNSC',
     'GBM',
     'UCEC',
-    'THCA', # (Did not converge in AffinityPropagation)
+    'THCA',
     'PRAD',
     'COAD',
     'LGG',
