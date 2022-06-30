@@ -18,6 +18,8 @@ require(optparse)
 ROOT = here::here()
 source(file.path(ROOT,'src','R','utils.R'))
 
+FONT_FAMILY = "Arial"
+
 # Development
 # -----------
 # RESULTS_DIR = file.path(ROOT,'results','preprocess_data','files')
@@ -47,7 +49,7 @@ plot_datasets_eda = function(dataset_info){
 
 make_plots = function(dataset_info){
     plts = list(
-        plot_datasets_eda(dataset_info),
+        plot_datasets_eda(dataset_info)
     )
     plts = do.call(c,plts)
     return(plts)
@@ -57,7 +59,7 @@ make_plots = function(dataset_info){
 make_figdata = function(dataset_info){
     figdata = list(
         'eda_datasets' = list(
-            'dataset_info' = dataset_info,
+            'dataset_info' = dataset_info
         )
     )
     return(figdata)
@@ -80,8 +82,8 @@ save_plt = function(plts, plt_name, extension=".pdf",
 
 
 save_plots = function(plts, figs_dir){
-    save_plt(plts, 'datasets_eda-counts_samples','.pdf',figs_dir, width=10, height=8)
-    save_plt(plts, 'datasets_eda-counts_genes','.pdf',figs_dir, width=10, height=8)
+    save_plt(plts, 'datasets_eda-counts_samples','.pdf',figs_dir, width=10, height=10)
+    save_plt(plts, 'datasets_eda-counts_genes','.pdf',figs_dir, width=10, height=10)
 }
 
 
@@ -104,7 +106,8 @@ main = function(){
     
     # load data
     dataset_info = read_tsv(dataset_info_file) %>%
-        mutate(label = paste0(main, " | ", dataset))
+        mutate(label = paste0(main, " | ", dataset),
+               label = gsub("Sastry2019 \|","",label))
     
     plts = make_plots(dataset_info)
     figdata = make_figdata(dataset_info)

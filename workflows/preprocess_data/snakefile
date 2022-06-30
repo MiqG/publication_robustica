@@ -43,6 +43,9 @@ DATASETS = {
     **{tissue: os.path.join(PREP_DIR,'genexpr','GTEx','%s.tsv.gz') % tissue for tissue in TISSUE_TYPES}
 }
 
+# run Sastry2019's pipeline
+DISTANCE_FUNCS = ["original"]#,"full"]
+
 ##### RULES #####
 rule all:
     input:
@@ -72,7 +75,9 @@ rule all:
         os.path.join(RESULTS_DIR,'preprocess_data','files','dataset_info.tsv'),
         
         # run Sastry's ICA pipeline
-        os.path.join(PREP_DIR,'original_pipeline_Sastry2019')
+        expand(os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','S.csv'), distance_func=DISTANCE_FUNCS),
+        expand(os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','A.csv'), distance_func=DISTANCE_FUNCS),
+        expand(os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','component_stats.csv'), distance_func=DISTANCE_FUNCS)
     
     
 rule prepare_metadata_tcga:
@@ -267,44 +272,28 @@ rule count_samples:
         dataset_info.to_csv(output[0], sep="\t", index=False)
         
         
-rule run_original_pipeline_Sastry2019:
+rule clustering_pipeline_Sastry2019:
     input:
-        genexpr = os.path.join(PREP_DIR,'genexpr','Sastry2019.tsv.gz')
+        S_all = os.path.join(PREP_DIR,'ica_runs','Sastry2019','S.pickle.gz'),
+        A_all = os.path.join(PREP_DIR,'ica_runs','Sastry2019','A.pickle.gz')
     output:
-        directory(os.path.join(PREP_DIR,'original_pipeline_Sastry2019'))
+        os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','S.csv'),
+        os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','A.csv'),
+        os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','component_stats.csv')        
     params:
-        scripts_dir = os.path.join("scripts","run_ica_Sastry2019"),
-        iterations = ITERATIONS,
-        tolerance = 1e-4, # default FastICA tolerance (changed from Sastry2019)
-        n_components = N_COMPONENTS,
-        dist = 0.5, # default DBSCAN eps (changed from Sastry2019)
-        min_frac = 0.5 # scaling factor to define DBSCAN's min_samples
-    threads: 14
+        distance_func = "{distance_func}",
+        eps = 0.5,
+        min_frac = 0.5,
+        n_iters = 100,
+        output_dir = os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}')
     shell:
         """
-        set -eo pipefail
-        
-        nice mpiexec -n {threads} python {params.scripts_dir}/random_restart_ica.py \
-                    -f {input.genexpr} \
-                    -i {params.iterations} \
-                    -t {params.tolerance} \
-                    -o {output}
-                                  
-        echo "Done! (random restart)"
-        
-        
-        nice mpiexec -n {threads} python {params.scripts_dir}/compute_distance.py \
-                    -i {params.iterations} \
-                    -o {output}
-                    
-        echo "Done! (compute distance)"
-        
-        
-        nice mpiexec -n {threads} python {params.scripts_dir}/cluster_components.py \
-                    -i {params.iterations} \
-                    -d {params.dist} \
-                    -m {params.min_frac} \
-                    -o {output}
-                    
-        echo "Done! (cluster components)"
+        nice python scripts/clustering_pipeline_Sastry2019.py \
+                    --S_all_file={input.S_all} \
+                    --A_all_file={input.A_all} \
+                    --distance_func={params.distance_func} \
+                    --eps={params.eps} \
+                    --min_frac={params.min_frac} \
+                    --n_iters={params.n_iters} \
+                    --output_dir={params.output_dir}
         """
