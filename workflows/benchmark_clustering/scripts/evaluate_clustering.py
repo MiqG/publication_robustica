@@ -235,7 +235,7 @@ def evaluate_clustering(property_type, property_oi, S_all, A_all, iterations):
     performance["property_oi"] = property_oi
     clustering_info["property_oi"] = property_oi
 
-    return performance, clustering_info
+    return S, A, S_std, A_std, performance, clustering_info
 
 
 def parse_args():
@@ -266,10 +266,23 @@ def main():
     # evaluate performance
     performances = []
     clustering_infos = []
+    S_robusts = {}
+    S_stds = {}
+    A_robusts = {}
+    A_stds = {}
     for property_oi in properties_oi:
-        p, c = evaluate_clustering(property_type, property_oi, S_all, A_all, iterations)
+        # run
+        S, A, S_std, A_std, p, c = evaluate_clustering(property_type, property_oi, S_all, A_all, iterations)
+        
+        # save
         performances.append(p)
         clustering_infos.append(c)
+        
+        labels = np.unique(c["cluster_id"])
+        S_robusts[property_oi] = pd.DataFrame(S, index=S_all.index, columns=labels)
+        S_stds[property_oi] = pd.DataFrame(S_std, index=S_all.index, columns=labels)
+        A_robusts[property_oi] = pd.DataFrame(A, index=A_all.index, columns=labels)
+        A_stds[property_oi] = pd.DataFrame(A_std, index=A_all.index, columns=labels)
 
     performances = pd.concat(performances)
     clustering_infos = pd.concat(clustering_infos)
@@ -280,7 +293,19 @@ def main():
     clustering_infos.to_csv(
         os.path.join(output_dir, "clustering_info.tsv.gz"), **SAVE_PARAMS
     )
-
+    for algorithm in properties_oi:
+        S_robusts[algorithm].reset_index().to_csv(
+            os.path.join(output_dir, "%s-S.tsv.gz") % algorithm, **SAVE_PARAMS
+        )
+        S_stds[algorithm].reset_index().to_csv(
+            os.path.join(output_dir, "%s-S_std.tsv.gz") % algorithm, **SAVE_PARAMS
+        )
+        A_robusts[algorithm].reset_index().to_csv(
+            os.path.join(output_dir, "%s-A.tsv.gz") % algorithm, **SAVE_PARAMS
+        )
+        A_stds[algorithm].reset_index().to_csv(
+            os.path.join(output_dir, "%s-A_std.tsv.gz") % algorithm, **SAVE_PARAMS
+        )
 
 ##### SCRIPT #####
 if __name__ == "__main__":
