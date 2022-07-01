@@ -37,28 +37,85 @@ DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 PREP_DIR = os.path.join(DATA_DIR,'prep')
 RESULTS_DIR = os.path.join(ROOT,'results','benchmark_sign_inference')
+SAVE_PARAMS = {"sep": "\t", "index": False, "compression": "gzip"}
 
-ALGORITHMS = ['icasso','robustica_nosign','robustica','robustica_pca']
+ALGORITHMS = ['icasso','icasso_infer_signs','icasso_pca','icasso_pca_nosign',
+              'robustica_nosign','robustica','robustica_pca']
 ITERATIONS = 100
-DATASETS = ['Sastry2019']
-N_COMPONENTS = {
-    'Sastry2019': 100
-}
+N_COMPONENTS = 100
+
+CANCER_TYPES = [
+    'BRCA',
+    'KIRC',
+    'LUAD',
+    'LUSC',
+    'OV',
+    'HNSC',
+    'GBM',
+    'UCEC',
+    'THCA',
+    'PRAD',
+    'COAD',
+    'LGG',
+    'STAD',
+    'SKCM',
+    'LIHC',
+    'BLCA',
+    'KIRP',
+    'CESC',
+    'SARC',
+    'ESCA',
+    'LAML' 
+]
+
+TISSUE_TYPES = [
+    'blood',
+    'brain', 
+    'skin',
+    'esophagus',
+    'blood_vessel',
+    'adipose_tissue', 
+    'heart',
+    'muscle',
+    'lung',
+    'colon', 
+    'thyroid',
+    'nerve',
+    'breast',
+    'testis',
+    'stomach', 
+    'pancreas', 
+    'pituitary',
+    'adrenal_gland', 
+    'prostate', 
+    'spleen',
+    'liver'
+]
+
+DATASETS = CANCER_TYPES + TISSUE_TYPES + ['Sastry2019']
 
 ##### RULES #####
 rule all:
     input:
         # evaluate performance
-        expand(os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'), dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_std.tsv.gz'), dataset=DATASETS),
+
         # evaluate module mapping
-        expand(os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz'),dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz'), dataset=DATASETS),
         
         # evaluate module mapping robustness
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-module_mapping_robustness.tsv.gz'), dataset=DATASETS, algorithm=['icasso','robustica_pca']),
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_robustness.tsv.gz'), dataset=DATASETS),
 
+        # merge results
+        os.path.join(RESULTS_DIR,'files','merged_clustering_performance_evaluation.tsv.gz'),
+        os.path.join(RESULTS_DIR,'files','merged_clustering_info.tsv.gz'),
+        os.path.join(RESULTS_DIR,'files','merged_module_mapping_evaluation.tsv.gz'),
+        os.path.join(RESULTS_DIR,'files','merged_module_mapping_robustness.tsv.gz'),
+        os.path.join(RESULTS_DIR,'files','merged_summary_S_std.tsv.gz'),
         # make figures
-        expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
+        #expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
         
 # outputs rule below
 formatted = {
@@ -81,9 +138,12 @@ rule evaluate_performance:
     params:
         algorithms = ','.join(ALGORITHMS),
         iterations = ITERATIONS
+    resources:
+        runtime = 3600*24, # 24h
+        memory = 60 # GB
     shell:
         """
-        python scripts/evaluate_performance.py \
+        nice python scripts/evaluate_performance.py \
                     --S_all_file={input.S} \
                     --A_all_file={input.A} \
                     --output_file={output.perf_eval} \
@@ -92,6 +152,34 @@ rule evaluate_performance:
         """
 
 
+rule summary_stats_from_robust_matrices:
+    input:
+        formatted['S_stds']
+    output:
+        os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_std.tsv.gz')
+    params:
+        algorithms = ALGORITHMS
+    run:
+        import os
+        import pandas as pd
+        
+        dfs = []
+        for f in input:
+            algorithm = os.path.basename(f).replace("-S_std.tsv.gz","")
+            print(algorithm)
+            
+            S_std = pd.read_table(f, index_col=0)
+            df = S_std.mean(axis=0).reset_index().rename(columns={"index":"cluster_id", 0:"cluster_avg_std"})
+            df["algorithm"] = algorithm
+            dfs.append(df)
+            
+        dfs = pd.concat(dfs)
+        
+        # save
+        dfs.to_csv(output[0], sep="\t", index=False, compression="gzip")
+        
+        print("Done!")
+            
         
 rule evaluate_module_mapping:
     input:
@@ -102,10 +190,13 @@ rule evaluate_module_mapping:
     params:
         algorithms = ','.join(['icasso','robustica_pca']),
         iterations = ITERATIONS,
-        n_components = lambda wildcards: N_COMPONENTS[wildcards.dataset]
+        n_components = N_COMPONENTS
+    resources:
+        runtime = 3600*6, # 6h
+        memory = 20 # GB
     shell:
         """
-        python scripts/evaluate_module_mapping_across_runs.py \
+        nice python scripts/evaluate_module_mapping_across_runs.py \
                     --S_all_file={input.S} \
                     --A_all_file={input.A} \
                     --output_file={output} \
@@ -117,24 +208,25 @@ rule evaluate_module_mapping:
         
 rule evaluate_module_mapping_robustness:
     input:
-        os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'), # not used
+        os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'), # not used (linker)
         S_mean = os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S.tsv.gz'),
         S_std = os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-S_std.tsv.gz')
     params:
         algorithm = '{algorithm}',
-        n_samples = 100,
-        index_col = 'log-TPM'
+        n_samples = 100
     output:
         os.path.join(RESULTS_DIR,'files','{dataset}','{algorithm}-module_mapping_robustness.tsv.gz')
+    resources:
+        runtime = 3600*6, # 6h
+        memory = 20 # GB
     shell:
         """
-        python scripts/evaluate_module_mapping_robustness.py \
+        nice python scripts/evaluate_module_mapping_robustness.py \
                     --S_mean_file={input.S_mean} \
                     --S_std_file={input.S_std} \
                     --output_file={output} \
                     --algorithm={params.algorithm} \
-                    --n_samples={params.n_samples} \
-                    --index_col={params.index_col}
+                    --n_samples={params.n_samples} 
         """
 
         
@@ -144,12 +236,49 @@ rule combine_module_mapping_robustness:
          for algorithm in ['icasso','robustica_pca']]
     output:
         os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_robustness.tsv.gz')
+    resources:
+        runtime = 3600*1, # 6h
+        memory = 5 # GB
     run:
         import pandas as pd
         df = pd.concat([pd.read_table(f) for f in input])
         df.to_csv(output[0], sep='\t', compression='gzip', index=False)
     
     
+rule merge_results_across_datasets:
+    input:
+        performance = [os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz').format(dataset=dataset) for dataset in DATASETS],
+        clustering = [os.path.join(RESULTS_DIR,'files','{dataset}','clustering_info.tsv.gz').format(dataset=dataset) for dataset in DATASETS],
+        mapping_eval = [os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz').format(dataset=dataset) for dataset in DATASETS],
+        mapping_rob = [os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_robustness.tsv.gz').format(dataset=dataset) for dataset in DATASETS],
+        S_stds = [os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_std.tsv.gz').format(dataset=dataset) for dataset in DATASETS]
+    output:
+        performance = os.path.join(RESULTS_DIR,'files','merged_clustering_performance_evaluation.tsv.gz'),
+        clustering = os.path.join(RESULTS_DIR,'files','merged_clustering_info.tsv.gz'),
+        mapping_eval = os.path.join(RESULTS_DIR,'files','merged_module_mapping_evaluation.tsv.gz'),
+        mapping_rob = os.path.join(RESULTS_DIR,'files','merged_module_mapping_robustness.tsv.gz'),
+        S_stds = os.path.join(RESULTS_DIR,'files','merged_summary_S_std.tsv.gz')
+    run:
+        import os
+        import pandas as pd
+        for key, filenames in input.items():
+            print(key)
+            dfs = []
+            for filename in filenames:
+                dataset = os.path.basename(os.path.dirname(filename))
+                print(dataset)
+                
+                df = pd.read_table(filename)
+                df["dataset"] = dataset
+                
+                dfs.append(df)
+            
+            dfs = pd.concat(dfs)
+            dfs.to_csv(output[key], **SAVE_PARAMS)
+        
+        print('Done!')
+        
+        
 rule figures_benchmark_sign_inference:
     input:
         performance_evaluation = os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),

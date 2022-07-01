@@ -59,6 +59,21 @@ ALGORITHMS = {
             "robust_dimreduce": False,
             "robust_kws": {"min_samples": int(100 * 0.5)},
         },
+        "icasso_infer_signs": {
+            "robust_infer_signs": True,
+            "robust_dimreduce": False,
+            "robust_kws": {"min_samples": int(100 * 0.5)},            
+        },
+        "icasso_pca": {
+            "robust_infer_signs": True,
+            "robust_dimreduce": True,
+            "robust_kws": {"min_samples": int(100 * 0.5)},            
+        },
+        "icasso_pca_nosign": {
+            "robust_infer_signs": False,
+            "robust_dimreduce": True,
+            "robust_kws": {"min_samples": int(100 * 0.5)},            
+        },
         "robustica_nosign": {
             "robust_infer_signs": False,
             "robust_dimreduce": False,
@@ -76,12 +91,27 @@ ALGORITHMS = {
             "robust_dimreduce": True,
             "robust_method": "DBSCAN",
             "robust_kws": {"metric": "euclidean"},
-        },
+        }
     },
     "AgglomerativeClustering": {
         "icasso": {
             "robust_infer_signs": False,
             "robust_dimreduce": False,
+            "robust_kws": {"n_clusters": 100},
+        },
+        "icasso_infer_signs": {
+            "robust_infer_signs": True,
+            "robust_dimreduce": False,
+            "robust_kws": {"n_clusters": 100},
+        },
+        "icasso_pca": {
+            "robust_infer_signs": True,
+            "robust_dimreduce": True,
+            "robust_kws": {"n_clusters": 100},
+        },
+        "icasso_pca_nosign": {
+            "robust_infer_signs": False,
+            "robust_dimreduce": True,
             "robust_kws": {"n_clusters": 100},
         },
         "robustica_nosign": {
@@ -114,7 +144,7 @@ PREP_DIR = os.path.join(ROOT,'data','prep','ica_runs')
 S_all_file = os.path.join(PREP_DIR,'Sastry2019','S.pickle.gz')
 A_all_file = os.path.join(PREP_DIR,'Sastry2019','A.pickle.gz')
 iterations = 100
-algorithms = 'icasso,robustica_pca'.split(',')
+algorithms = 'icasso,icasso_infer_signs,robustica_pca'.split(',')
 """
 
 
@@ -145,9 +175,6 @@ class icasso:
     def fit(self, X):
         self.clustering.fit(X)
         self.labels_ = self.clustering.labels_
-
-
-ALGORITHMS[METHOD_OI]["icasso"]["robust_method"] = icasso
 
 
 def compute_robust_components(rica):
@@ -279,6 +306,11 @@ def parse_args():
 
     return args
 
+# add custom method class
+ALGORITHMS[METHOD_OI]["icasso"]["robust_method"] = icasso
+ALGORITHMS[METHOD_OI]["icasso_infer_signs"]["robust_method"] = icasso
+ALGORITHMS[METHOD_OI]["icasso_pca"]["robust_method"] = icasso
+ALGORITHMS[METHOD_OI]["icasso_pca_nosign"]["robust_method"] = icasso
 
 def main():
     args = parse_args()

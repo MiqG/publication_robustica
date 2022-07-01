@@ -28,7 +28,7 @@ algorithm = 'robustica_pca'
 S_mean_file = os.path.join(RESULTS_DIR,'files','Sastry2019','robustica_pca-S.tsv.gz')
 S_std_file = os.path.join(RESULTS_DIR,'files','Sastry2019','robustica_pca-S_std.tsv.gz')
 n_samples=10
-index_col='log-TPM'
+index_col=0 #'log-TPM'
 """
 
 
@@ -64,8 +64,8 @@ def compare_modules(A, B):
 
 def map_sampled_modules(S_mean, S_std, index_col, modules_ref):
     # prep inputs
-    mat_mean = S_mean.drop(columns=[index_col]).values
-    mat_std = S_std.drop(columns=[index_col]).values
+    mat_mean = S_mean.drop(columns=S_mean.columns[index_col]).values
+    mat_std = S_std.drop(columns=S_mean.columns[index_col]).values
     
     # sample each weight
     mat_sampled = np.full(mat_mean.shape, np.nan)
@@ -100,7 +100,7 @@ def parse_args():
     parser.add_argument("--output_file", type=str)
     parser.add_argument("--algorithm", type=str)
     parser.add_argument("--n_samples", type=int)
-    parser.add_argument("--index_col", type=str)
+    parser.add_argument("--index_col", type=int, default=0)
 
     args = parser.parse_args()
 
@@ -120,7 +120,7 @@ def main():
     S_mean, S_std = load_data(S_mean_file, S_std_file)
     
     # sample modules jaccards
-    modules_ref = get_modules(S_mean.drop(columns=index_col))
+    modules_ref = get_modules(S_mean.drop(columns=S_mean.columns[index_col]))
     results = [
         map_sampled_modules(
             S_mean, S_std, index_col, modules_ref
