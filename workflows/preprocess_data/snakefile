@@ -44,7 +44,7 @@ DATASETS = {
 }
 
 # run Sastry2019's pipeline
-DISTANCE_FUNCS = ["original"]#,"full"]
+DISTANCE_FUNCS = ["original"]
 
 ##### RULES #####
 rule all:
