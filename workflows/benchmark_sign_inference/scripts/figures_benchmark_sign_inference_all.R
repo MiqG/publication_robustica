@@ -101,8 +101,6 @@ DATASETS_REF = rbind(
         )
     )
 )
-# formatting
-FONT_FAMILY = "Arial"
 
 # Development
 # -----------
@@ -191,7 +189,7 @@ plot_clustering_eval = function(clustering_eval){
         labs(x="Metric", y="Dataset N. Components in Robust Comp.")
 
     # metric vs. cluster average std (add data!)
-    plts[["clustering_eval-metric_vs_cluster_size"]] = X %>% 
+    plts[["clustering_eval-metric_vs_cluster_std"]] = X %>% 
         ggboxplot(x="algorithm", y="dataset_cluster_std", color="algorithm",
                   palette=PAL_METRICS, fill=NA, outlier.size=0.1) +
         guides(color="none") +
@@ -207,23 +205,43 @@ plot_mapping_eval = function(mapping_eval){
         group_by(dataset, algorithm, runs) %>%
         summarize(dataset_jaccard = mean(jaccard),
                   dataset_n_clusters = n()) %>%
-        ungroup()
+        ungroup() 
     
     metrics_oi = c('icasso','robustica_pca')
     
     plts = list()
     plts[['mapping_eval-runs_vs_jaccard']] = X %>% 
-        filter(algorithm%in%metrics_oi) %>% 
-        ggline(x='runs', y='dataset_jaccard', add='mean_se', point.size=0.1, numeric.x.axis = FALSE, 
-               palette=PAL_METRICS[metrics_oi], color='algorithm', linetype='dashed') +
-        stat_compare_means(method='kruskal.test', size=2, family=FONT_FAMILY) +
+        filter(algorithm%in%metrics_oi) %>%
+        group_by(runs, algorithm) %>%
+        summarize(
+            median = median(dataset_jaccard),
+            q25 = quantile(dataset_jaccard, 0.25),
+            q75 = quantile(dataset_jaccard, 0.75)
+        ) %>%
+        ungroup() %>%
+        ggplot(aes(x=runs, y=median, color=algorithm)) +
+        geom_line(size=0.1, linetype="dashed") +
+        geom_point(size=0.1) +
+        geom_errorbar(aes(ymin=q25, ymax=q75), width=1, size=0.1) +
+        color_palette(PAL_METRICS[metrics_oi]) +
+        theme_pubr() +
         labs(x='Runs', y='Dataset Jaccard', color="Metric")
     
-    plts[['mapping_eval-n_components']] = X %>% 
-        filter(algorithm%in%metrics_oi) %>% 
-        ggline(x='runs', y='dataset_n_clusters', add='mean_se', point.size=0.1, numeric.x.axis = FALSE, 
-               palette=PAL_METRICS[metrics_oi], color='algorithm', linetype='dashed') +
-        stat_compare_means(method='kruskal.test', size=2, family=FONT_FAMILY) +
+    plts[['mapping_eval-runs_vs_n_components']] = X %>% 
+        filter(algorithm%in%metrics_oi) %>%
+        group_by(runs, algorithm) %>%
+        summarize(
+            median = median(dataset_n_clusters),
+            q25 = quantile(dataset_n_clusters, 0.25),
+            q75 = quantile(dataset_n_clusters, 0.75)
+        ) %>%
+        ungroup() %>%
+        ggplot(aes(x=runs, y=median, color=algorithm)) +
+        geom_line(size=0.1, linetype="dashed") +
+        geom_point(size=0.1) +
+        geom_errorbar(aes(ymin=q25, ymax=q75), width=1, size=0.1) +
+        color_palette(PAL_METRICS[metrics_oi]) +
+        theme_pubr() + 
         labs(x='Runs', y='N. Independent Components', color="Metric")
     
     return(plts)
@@ -354,8 +372,16 @@ save_plt = function(plts, plt_name, extension=".pdf",
 
 
 save_plots = function(plts, figs_dir){
-    # example
-    save_plt(plts,'corr_vs_euc-scatter','.pdf',figs_dir, width=12,height=12)
+    save_plt(plts,'clustering_eval-metric_vs_time','.pdf',figs_dir, width=5, height=5)
+    save_plt(plts,'clustering_eval-metric_vs_max_memory','.pdf',figs_dir, width=5.2, height=5)
+    save_plt(plts,'clustering_eval-metric_vs_silhouette','.pdf',figs_dir, width=5, height=5)
+    save_plt(plts,'clustering_eval-metric_vs_n_clusters','.pdf',figs_dir, width=5, height=5)
+    save_plt(plts,'clustering_eval-metric_vs_n_clusters_vs_silhouette','.pdf',figs_dir, width=5, height=5)
+    save_plt(plts,'clustering_eval-metric_vs_cluster_size','.pdf',figs_dir, width=5, height=5)
+    save_plt(plts,'clustering_eval-metric_vs_cluster_std','.pdf',figs_dir, width=5.2, height=5)
+    save_plt(plts,'mapping_eval-runs_vs_jaccard','.pdf',figs_dir, width=5, height=5)
+    save_plt(plts,'mapping_eval-runs_vs_n_components','.pdf',figs_dir, width=5, height=5)
+    save_plt(plts,'mapping_robust-metric_vs_jaccard','.pdf',figs_dir, width=5, height=5)
 }
 
 
