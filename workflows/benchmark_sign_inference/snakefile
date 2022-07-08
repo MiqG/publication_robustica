@@ -99,6 +99,7 @@ rule all:
     input:
         # evaluate performance
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'), dataset=DATASETS),
+        expand(os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_mean.tsv.gz'), dataset=DATASETS),
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_std.tsv.gz'), dataset=DATASETS),
 
         # evaluate module mapping
@@ -113,6 +114,7 @@ rule all:
         os.path.join(RESULTS_DIR,'files','merged_clustering_info.tsv.gz'),
         os.path.join(RESULTS_DIR,'files','merged_module_mapping_evaluation.tsv.gz'),
         os.path.join(RESULTS_DIR,'files','merged_module_mapping_robustness.tsv.gz'),
+        os.path.join(RESULTS_DIR,'files','merged_summary_S_mean.tsv.gz'),
         os.path.join(RESULTS_DIR,'files','merged_summary_S_std.tsv.gz'),
         # make figures
         #expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
@@ -154,33 +156,36 @@ rule evaluate_performance:
 
 rule summary_stats_from_robust_matrices:
     input:
-        formatted['S_stds']
+        S_means = formatted['S_means'],
+        S_stds = formatted['S_stds']
     output:
-        os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_std.tsv.gz')
+        S_means = os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_mean.tsv.gz'),
+        S_stds = os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_std.tsv.gz')
     params:
         algorithms = ALGORITHMS
     run:
         import os
         import pandas as pd
         
-        dfs = []
-        for f in input:
-            algorithm = os.path.basename(f).replace("-S_std.tsv.gz","")
-            print(algorithm)
-            
-            S_std = pd.read_table(f, index_col=0)
-            df = S_std.mean(axis=0).reset_index().rename(columns={"index":"cluster_id", 0:"cluster_avg_std"})
-            df["algorithm"] = algorithm
-            dfs.append(df)
-            
-        dfs = pd.concat(dfs)
+        for key, filenames in input.items():
+            dfs = []
+            for f in filenames:
+                algorithm = os.path.basename(f).replace("-S_std.tsv.gz","").replace("-S.tsv.gz","")
+                print(algorithm)
+
+                S_std = pd.read_table(f, index_col=0)
+                df = S_std.mean(axis=0).reset_index().rename(columns={"index":"cluster_id", 0:"cluster_avg_std"})
+                df["algorithm"] = algorithm
+                dfs.append(df)
+
+            dfs = pd.concat(dfs)
         
-        # save
-        dfs.to_csv(output[0], sep="\t", index=False, compression="gzip")
+            # save
+            dfs.to_csv(output[key], sep="\t", index=False, compression="gzip")
         
         print("Done!")
             
-        
+
 rule evaluate_module_mapping:
     input:
         S = os.path.join(PREP_DIR,'ica_runs','{dataset}','S.pickle.gz'),
@@ -251,12 +256,14 @@ rule merge_results_across_datasets:
         clustering = [os.path.join(RESULTS_DIR,'files','{dataset}','clustering_info.tsv.gz').format(dataset=dataset) for dataset in DATASETS],
         mapping_eval = [os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz').format(dataset=dataset) for dataset in DATASETS],
         mapping_rob = [os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_robustness.tsv.gz').format(dataset=dataset) for dataset in DATASETS],
+        S_means = [os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_mean.tsv.gz').format(dataset=dataset) for dataset in DATASETS],
         S_stds = [os.path.join(RESULTS_DIR,'files','{dataset}','summary_S_std.tsv.gz').format(dataset=dataset) for dataset in DATASETS]
     output:
         performance = os.path.join(RESULTS_DIR,'files','merged_clustering_performance_evaluation.tsv.gz'),
         clustering = os.path.join(RESULTS_DIR,'files','merged_clustering_info.tsv.gz'),
         mapping_eval = os.path.join(RESULTS_DIR,'files','merged_module_mapping_evaluation.tsv.gz'),
         mapping_rob = os.path.join(RESULTS_DIR,'files','merged_module_mapping_robustness.tsv.gz'),
+        S_means = os.path.join(RESULTS_DIR,'files','merged_summary_S_mean.tsv.gz'),
         S_stds = os.path.join(RESULTS_DIR,'files','merged_summary_S_std.tsv.gz')
     run:
         import os
