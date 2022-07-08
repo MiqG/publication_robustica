@@ -398,7 +398,6 @@ main = function(){
     comparison_jaccard = simil(gene_sets_robustica, gene_sets_Sastry2019, 
                                method='Jaccard', by_rows=FALSE)
     
-    
     # visualize
     plts = make_plots(performance, clustering, pca_components,comparison_pearson, comparison_jaccard)
     figdata = make_figdata(performance, clustering, pca_components)

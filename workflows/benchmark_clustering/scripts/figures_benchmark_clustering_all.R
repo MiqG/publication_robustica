@@ -428,7 +428,7 @@ main = function(){
         left_join(max_memory, by=c('dataset','property_oi')) %>%
         left_join(dataset_info, by="dataset") %>%
         # label noisy components/clusters
-        group_by(property_oi, cluster_id) %>%
+        group_by(dataset, property_oi, cluster_id) %>%
         mutate(is_low_silhouette = mean(silhouette_euclidean) < 0.5 | cluster_id==-1,
                is_noisy = cluster_id==-1) %>%
         ungroup()
