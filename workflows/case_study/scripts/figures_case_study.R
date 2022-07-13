@@ -30,8 +30,10 @@ require(circlize)
 require(ggrepel)
 require(survival)
 require(survminer)
+require(optparse)
 
 # variables
+DATASET_OI = "LGG"
 METRICS_OI = c("icasso","robustica_nosign","robustica","robustica_pca","icasso_pca")
 
 # formatting
@@ -45,18 +47,16 @@ PAL_FDR_LIGHT = "#DC3220"
 # ROOT = here::here()
 # PREP_DIR = file.path(ROOT,'data','prep')
 
-# dataset_oi = "LGG"
-
 # RESULTS_SIGN_DIR = file.path(ROOT,'results','benchmark_sign_inference')
 # performance_file = file.path(RESULTS_SIGN_DIR,'files','merged_clustering_performance_evaluation.tsv.gz')
 # clustering_file = file.path(RESULTS_SIGN_DIR,'files','merged_clustering_info.tsv.gz')
 # S_stds_file = file.path(RESULTS_SIGN_DIR,'files','merged_summary_S_std.tsv.gz')
 
-# S_icasso_file = file.path(RESULTS_SIGN_DIR,'files',dataset_oi,'icasso-S.tsv.gz')
-# S_std_icasso_file = file.path(RESULTS_SIGN_DIR,'files',dataset_oi,'icasso-S_std.tsv.gz')
-# S_robustica_pca_file = file.path(RESULTS_SIGN_DIR,'files',dataset_oi,'robustica_pca-S.tsv.gz')
-# S_std_robustica_pca_file = file.path(RESULTS_SIGN_DIR,'files',dataset_oi,'robustica_pca-S_std.tsv.gz')
-# A_robustica_pca_file = file.path(RESULTS_SIGN_DIR,'files',dataset_oi,'robustica_pca-A.tsv.gz')
+# S_icasso_file = file.path(RESULTS_SIGN_DIR,'files',DATASET_OI,'icasso-S.tsv.gz')
+# S_std_icasso_file = file.path(RESULTS_SIGN_DIR,'files',DATASET_OI,'icasso-S_std.tsv.gz')
+# S_robustica_pca_file = file.path(RESULTS_SIGN_DIR,'files',DATASET_OI,'robustica_pca-S.tsv.gz')
+# S_std_robustica_pca_file = file.path(RESULTS_SIGN_DIR,'files',DATASET_OI,'robustica_pca-S_std.tsv.gz')
+# A_robustica_pca_file = file.path(RESULTS_SIGN_DIR,'files',DATASET_OI,'robustica_pca-A.tsv.gz')
 
 # genexpr_file = file.path(PREP_DIR,'genexpr','TCGA','LGG.tsv.gz')
 # snv_file = file.path(PREP_DIR,'snv','TCGA','LGG.tsv.gz')
@@ -66,7 +66,7 @@ PAL_FDR_LIGHT = "#DC3220"
 # RESULTS_DIR = file.path(ROOT,'results','case_study')
 # enrichment_icasso_file = file.path(RESULTS_DIR,"files","gsea","LGG","icasso.tsv.gz")
 # enrichment_robustica_pca_file = file.path(RESULTS_DIR,"files","gsea","LGG","robustica_pca.tsv.gz")
-# figs_dir = file.path(RESULTS_DIR,'figures',dataset_oi)
+# figs_dir = file.path(RESULTS_DIR,'figures',DATASET_OI)
 
 
 ###### FUNCTIONS #####
@@ -142,7 +142,7 @@ plot_clustering_eval = function(clustering_eval){
 }
 
 
-plot_comparison_methods = function(comparison_pearson, comparison_jaccard, mapping, clustering_eval){
+plot_comparison_methods = function(comparison_pearson, comparison_jaccard, mapping, clustering_eval, enrichments){
     # icasso vs robustica PCA
     
     plts = list()
@@ -487,7 +487,8 @@ plot_components_oi = function(snv, results, metadata, A_robustica_pca,
     plts[["components_oi-enrichments"]] = X %>%
         filter(Description %in% gene_sets_oi) %>%
         left_join(n_genes, by="component") %>%
-        mutate(component = sprintf("%s\n(n=%s)", component, n)) %>%
+        mutate(component = sprintf("%s\n(n=%s)", component, n),
+               component = factor(component, levels=sort(unique(component), decreasing=TRUE))) %>%
         ggplot(aes(x=component, y=Description)) +
         geom_point(aes(size=gene_ratio, color=p.adjust)) +
         scale_size(range=c(0.5,3)) + 
@@ -509,7 +510,7 @@ make_plots = function(performance, clustering_eval, comparison_pearson,
     plts = list(
         plot_performance(performance),
         plot_clustering_eval(clustering_eval),
-        plot_comparison_methods(comparison_pearson, comparison_jaccard, mapping, clustering_eval),
+        plot_comparison_methods(comparison_pearson, comparison_jaccard, mapping, clustering_eval, enrichments),
         plot_components_oi(snv, results, metadata, A_robustica_pca, 
                            S_robustica_pca, enrichments, modules_robustica_pca)
     )
@@ -559,9 +560,49 @@ save_plots = function(plts, figs_dir){
 }
 
 
+parseargs = function(){
+    
+    option_list = list( 
+        make_option("--performance_file", type="character"),
+        make_option("--clustering_file", type="character"),
+        make_option("--S_stds_file", type="character"),
+        make_option("--S_icasso_file", type="character"),
+        make_option("--S_std_icasso_file", type="character"),
+        make_option("--S_robustica_pca_file", type="character"),
+        make_option("--S_std_robustica_pca_file", type="character"),
+        make_option("--A_robustica_pca_file", type="character"),
+        make_option("--genexpr_file", type="character"),
+        make_option("--snv_file", type="character"),
+        make_option("--metadata_file", type="character"),
+        make_option("--sample_indices_file", type="character"),
+        make_option("--enrichment_icasso_file", type="character"),
+        make_option("--enrichment_robustica_pca_file", type="character"),
+        make_option("--figs_dir", type="character")
+    )
+
+    args = parse_args(OptionParser(option_list=option_list))
+    
+    return(args)
+}
+
+
 main = function(){
-    args = getParsedArgs()
-    performance_evaluation_file = args$performance_evaluation_file
+    args = parseargs()
+    performance_file = args[["performance_file"]]
+    clustering_file = args[["clustering_file"]]
+    S_stds_file = args[["S_stds_file"]]
+    S_icasso_file = args[["S_icasso_file"]]
+    S_std_icasso_file = args[["S_std_icasso_file"]]
+    S_robustica_pca_file = args[["S_robustica_pca_file"]]
+    S_std_robustica_pca_file = args[["S_std_robustica_pca_file"]]
+    A_robustica_pca_file = args[["A_robustica_pca_file"]]
+    genexpr_file = args[["genexpr_file"]]
+    snv_file = args[["snv_file"]]
+    metadata_file = args[["metadata_file"]]
+    sample_indices_file = args[["sample_indices_file"]]
+    enrichment_icasso_file = args[["enrichment_icasso_file"]]
+    enrichment_robustica_pca_file = args[["enrichment_robustica_pca_file"]]
+    figs_dir = args[["figs_dir"]]
     
     dir.create(figs_dir, recursive = TRUE)
     
@@ -572,13 +613,13 @@ main = function(){
     sample_indices = read_tsv(sample_indices_file)
     
     performance = read_tsv(performance_file) %>% 
-        filter(dataset==dataset_oi & algorithm%in%METRICS_OI) %>%
+        filter(dataset==DATASET_OI & algorithm%in%METRICS_OI) %>%
         mutate(algorithm = factor(algorithm, levels=METRICS_OI))
     clustering = read_tsv(clustering_file) %>% 
-        filter(dataset==dataset_oi & algorithm%in%METRICS_OI) %>%
+        filter(dataset==DATASET_OI & algorithm%in%METRICS_OI) %>%
         mutate(algorithm = factor(algorithm, levels=METRICS_OI))
     S_stds = read_tsv(S_stds_file) %>% 
-        filter(dataset==dataset_oi & algorithm%in%METRICS_OI) %>%
+        filter(dataset==DATASET_OI & algorithm%in%METRICS_OI) %>%
         mutate(algorithm = factor(algorithm, levels=METRICS_OI))
     
     S_icasso = read_tsv(S_icasso_file)

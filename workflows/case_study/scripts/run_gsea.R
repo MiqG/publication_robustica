@@ -6,8 +6,6 @@
 # --------------
 # EDA of gene dependencies regressed on event PSI and gene TPMs.
 #
-# Outline
-# -------
 
 require(tidyverse)
 require(fdrtool)
@@ -18,7 +16,6 @@ require(optparse)
 # variables
 THRESH_FDR = 0.05
 THRESH_MEDIAN_DIFF = 5
-ORGDB = org.Hs.eg.db
 
 # Development
 # -----------

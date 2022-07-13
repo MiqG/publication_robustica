@@ -10,16 +10,15 @@ import numpy as np
 
 ##### VARIABLES #####
 ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
-DATA_DIR = os.path.join(ROOT,'data')
-RAW_DIR = os.path.join(DATA_DIR,'raw')
-PREP_DIR = os.path.join(DATA_DIR,'prep')
-RESULTS_SIGN_DIR = os.path.join(ROOT,'results','benchmark_sign_inference')
-RESULTS_DIR = os.path.join(ROOT,'results','case_study')
+DATA_DIR = os.path.join(ROOT,"data")
+RAW_DIR = os.path.join(DATA_DIR,"raw")
+PREP_DIR = os.path.join(DATA_DIR,"prep")
+RESULTS_SIGN_DIR = os.path.join(ROOT,"results","benchmark_sign_inference")
+RESULTS_DIR = os.path.join(ROOT,"results","case_study")
 
-MSIGDB_DIR = os.path.join(RAW_DIR,'MSigDB','msigdb_v7.4','msigdb_v7.4_files_to_download_locally','msigdb_v7.4_GMTs')
+MSIGDB_DIR = os.path.join(RAW_DIR,"MSigDB","msigdb_v7.4","msigdb_v7.4_files_to_download_locally","msigdb_v7.4_GMTs")
 
-DATASETS = ['LGG','Sastry2019']
-ALGORITHMS = ['icasso','robustica_pca']
+ALGORITHMS = ["icasso","robustica_pca"]
 
 ##### RULES #####
 rule all:
@@ -28,12 +27,12 @@ rule all:
         expand(os.path.join(RESULTS_DIR,"files","gsea","{dataset}","{algorithm}.tsv.gz"), dataset=["LGG"], algorithm=ALGORITHMS),
         
         # make figures
-        expand(os.path.join(RESULTS_DIR,'figures','interpretation','{dataset}'), dataset=['LGG'])
+        os.path.join(RESULTS_DIR,"figures","interpretation","LGG")
         
             
 rule gsea:
     input:
-        S = os.path.join(RESULTS_SIGN_DIR,'files',"{dataset}",'{algorithm}-S.tsv.gz'),
+        S = os.path.join(RESULTS_SIGN_DIR,"files","{dataset}","{algorithm}-S.tsv.gz"),
         msigdb_dir = MSIGDB_DIR
     output:
         os.path.join(RESULTS_DIR,"files","gsea","{dataset}","{algorithm}.tsv.gz")
@@ -51,27 +50,39 @@ rule gsea:
 
 rule figures_case_study:
     input:
-        S = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','robustica_pca','S.tsv.gz'),
-        A = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','robustica_pca','A.tsv.gz'),
-        stats = os.path.join(RESULTS_DIR,'files','cluster_iterations','{dataset}','robustica_pca','stats.tsv.gz'),
-        genexpr = os.path.join(PREP_DIR,'genexpr','{dataset}.tsv.gz'),
-        snv = os.path.join(PREP_DIR,'snv','{dataset}.tsv.gz'),
-        metadata = os.path.join(PREP_DIR,'metadata','{dataset}.tsv'),
-        sample_indices = os.path.join(PREP_DIR,'sample_indices','{dataset}.tsv'),
-        msigdb_dir = MSIGDB_DIR
+        performance = os.path.join(RESULTS_SIGN_DIR,"files","merged_clustering_performance_evaluation.tsv.gz"),
+        clustering = os.path.join(RESULTS_SIGN_DIR,"files","merged_clustering_info.tsv.gz"),
+        S_stds = os.path.join(RESULTS_SIGN_DIR,"files","merged_summary_S_std.tsv.gz"),
+        S_icasso = os.path.join(RESULTS_SIGN_DIR,"files","LGG","icasso-S.tsv.gz"),
+        S_std_icasso = os.path.join(RESULTS_SIGN_DIR,"files","LGG","icasso-S_std.tsv.gz"),
+        S_robustica_pca = os.path.join(RESULTS_SIGN_DIR,"files","LGG","robustica_pca-S.tsv.gz"),
+        S_std_robustica_pca = os.path.join(RESULTS_SIGN_DIR,"files","LGG","robustica_pca-S_std.tsv.gz"),
+        A_robustica_pca = os.path.join(RESULTS_SIGN_DIR,"files","LGG","robustica_pca-A.tsv.gz"),
+        genexpr = os.path.join(PREP_DIR,"genexpr","TCGA","LGG.tsv.gz"),
+        snv = os.path.join(PREP_DIR,"snv","TCGA","LGG.tsv.gz"),
+        metadata = os.path.join(PREP_DIR,"metadata","TCGA","LGG.tsv"),
+        sample_indices = os.path.join(PREP_DIR,"sample_indices","LGG.tsv"),
+        enrichment_icasso = os.path.join(RESULTS_DIR,"files","gsea","LGG","icasso.tsv.gz"),
+        enrichment_robustica_pca = os.path.join(RESULTS_DIR,"files","gsea","LGG","robustica_pca.tsv.gz"),
     output:
-        directory(os.path.join(RESULTS_DIR,'figures','interpretation','{dataset}'))
+        directory(os.path.join(RESULTS_DIR,"figures","LGG"))
     shell:
         """
-        Rscript scripts/figures_interpret_case_study.R \
-                    --S_file={input.S} \
-                    --A_file={input.A} \
+        nice Rscript scripts/figures_case_study.R \
+                    --performance_file={input.performance} \
+                    --clustering_file={input.clustering} \
+                    --S_stds_file={input.S_stds} \
+                    --S_icasso_file={input.S_icasso} \
+                    --S_std_icasso_file={input.S_std_icasso} \
+                    --S_robustica_pca_file={input.S_robustica_pca} \
+                    --S_std_robustica_pca_file={input.S_std_robustica_pca} \
+                    --A_robustica_pca_file={input.A_robustica_pca} \
                     --genexpr_file={input.genexpr} \
                     --snv_file={input.snv} \
                     --metadata_file={input.metadata} \
-                    --stats_file={input.stats} \
                     --sample_indices_file={input.sample_indices} \
-                    --msigdb_dir={input.msigdb_dir} \
+                    --enrichment_icasso_file={input.enrichment_icasso} \
+                    --enrichment_robustica_pca_file={input.enrichment_robustica_pca} \
                     --figs_dir={output}
         """
         
