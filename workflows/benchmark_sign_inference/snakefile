@@ -116,8 +116,9 @@ rule all:
         os.path.join(RESULTS_DIR,'files','merged_module_mapping_robustness.tsv.gz'),
         os.path.join(RESULTS_DIR,'files','merged_summary_S_mean.tsv.gz'),
         os.path.join(RESULTS_DIR,'files','merged_summary_S_std.tsv.gz'),
+        
         # make figures
-        #expand(os.path.join(RESULTS_DIR,'figures','{dataset}'),dataset=DATASETS)
+        os.path.join(RESULTS_DIR,'figures','all')
         
 # outputs rule below
 formatted = {
@@ -286,34 +287,24 @@ rule merge_results_across_datasets:
         print('Done!')
         
         
-rule figures_benchmark_sign_inference:
+rule figures_benchmark_sign_inference_all:
     input:
-        performance_evaluation = os.path.join(RESULTS_DIR,'files','{dataset}','performance_evaluation.tsv.gz'),
-        clustering_info = os.path.join(RESULTS_DIR,'files','{dataset}','clustering_info.tsv.gz'),
-        mapping_eval = os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_evaluation.tsv.gz'),
-        mapping_robust = os.path.join(RESULTS_DIR,'files','{dataset}','module_mapping_robustness.tsv.gz'),
-        S_means = formatted['S_means'],
-        S_stds = formatted['S_stds'],
-        A_means = formatted['A_means'],
-        A_stds = formatted['A_stds']
+        performance = os.path.join(RESULTS_DIR,'files','merged_clustering_performance_evaluation.tsv.gz'),
+        clustering = os.path.join(RESULTS_DIR,'files','merged_clustering_info.tsv.gz'),
+        mapping_eval = os.path.join(RESULTS_DIR,'files','merged_module_mapping_evaluation.tsv.gz'),
+        mapping_robust = os.path.join(RESULTS_DIR,'files','merged_module_mapping_robustness.tsv.gz'),
+        dataset_info = os.path.join(ROOT,'results','preprocess_data','files','dataset_info.tsv'),
+        S_stds = os.path.join(RESULTS_DIR,'files','merged_summary_S_std.tsv.gz')
     output:
-        figs_dir = directory(os.path.join(RESULTS_DIR,'figures','{dataset}'))
-    params:
-        S_means = ','.join(formatted['S_means']),
-        S_stds = ','.join(formatted['S_stds']),
-        A_means = ','.join(formatted['A_means']),
-        A_stds = ','.join(formatted['A_stds'])
+        directory(os.path.join(RESULTS_DIR,'figures','all'))
     shell:
         """
-        Rscript scripts/figures_benchmark_sign_inference.R \
-                    --performance_evaluation_file={input.performance_evaluation} \
-                    --clustering_info_file={input.clustering_info} \
-                    --S_means_files={params.S_means} \
-                    --S_stds_files={params.S_stds} \
-                    --A_means_files={params.A_means} \
-                    --A_stds_files={params.A_stds} \
+        nice Rscript scripts/figures_benchmark_sign_inference_all.R \
+                    --performance_file={input.performance} \
+                    --clustering_file={input.clustering} \
+                    --S_stds_file={input.S_stds} \
+                    --dataset_info_file={input.dataset_info} \
                     --mapping_eval_file={input.mapping_eval} \
                     --mapping_robust_file={input.mapping_robust} \
                     --figs_dir={output}
         """
-        

@@ -26,14 +26,10 @@ require(writexl)
 require(ggnewscale)
 require(extrafont)
 require(ggbreak)
-
 require(ComplexHeatmap)
 require(circlize)
 require(ggplotify)
-
-
-ROOT = here::here()
-source(file.path(ROOT,'src','R','utils.R'))
+require(optparse)
 
 # variables
 FONT_FAMILY = "Arial"
@@ -104,6 +100,7 @@ DATASETS_REF = rbind(
 
 # Development
 # -----------
+# ROOT = here::here()
 # PREP_DIR = file.path(ROOT,'data','prep')
 # RESULTS_DIR = file.path(ROOT,'results','benchmark_sign_inference')
 # performance_file = file.path(RESULTS_DIR,'files','merged_clustering_performance_evaluation.tsv.gz')
@@ -268,24 +265,6 @@ plot_mapping_robust = function(mapping_robust){
 }
 
 
-# plot_clustering_choice = function(clustering_eval){
-#     # where do algorithms decide to place components
-    
-#     X = clustering_eval %>%
-#         # compute average silhouette per cluster
-#         group_by(dataset, algorithm, cluster_id, time, max_memory, cluster_avg_std) %>%
-#         mutate(
-#             cluster_silhouette = mean(silhouette_euclidean),
-#             cluster_size = n()
-#         ) %>%
-#         ungroup()
-    
-#     # where does each component go in the different metrics/datasets?
-#     # in terms of cluster size, cluster average silhouette, 
-    
-# }
-
-
 make_plots = function(clustering_eval, mapping_eval, mapping_robust){
     plts = list(
         plot_clustering_eval(clustering_eval),
@@ -385,10 +364,33 @@ save_plots = function(plts, figs_dir){
 }
 
 
-main = function(){
-    args = getParsedArgs()
+parseargs = function(){
+    
+    option_list = list( 
+        make_option("--performance_file", type="character"),
+        make_option("--clustering_file", type="character"),
+        make_option("--S_stds_file", type="character"),
+        make_option("--dataset_info_file", type="character"),
+        make_option("--mapping_eval_file", type="character"),
+        make_option("--mapping_robust_file", type="character"),
+        make_option("--figs_dir", type="character")
+    )
 
-    performance_evaluation_file = args$performance_evaluation_file
+    args = parse_args(OptionParser(option_list=option_list))
+    
+    return(args)
+}
+
+
+main = function(){
+    args = parseargs()
+    performance_file = args[["performance_file"]]
+    clustering_file = args[["clustering_file"]]
+    S_stds_file = args[["S_stds_file"]]
+    dataset_info_file = args[["dataset_info_file"]]
+    mapping_eval_file = args[["mapping_eval_file"]]
+    mapping_robust_file = args[["mapping_robust_file"]]
+    figs_dir = args[["figs_dir"]]
     
     dir.create(figs_dir, recursive = TRUE)
     
@@ -441,6 +443,7 @@ main = function(){
     
     # visualize
     plts = make_plots(clustering_eval, mapping_eval, mapping_robust)
+    #figdata = make_figdata()
     
     # save
     save_plots(plts, figs_dir)
