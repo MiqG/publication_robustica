@@ -13,6 +13,7 @@ ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
 DATA_DIR = os.path.join(ROOT,'data')
 RAW_DIR = os.path.join(DATA_DIR,'raw')
 
+GTEX_DIR = os.path.join(RAW_DIR,'GTEx','v8')
 XENA_DIR = os.path.join(RAW_DIR,'UCSCXena')
 MSIGDB_DIR = os.path.join(RAW_DIR,'MSigDB')
 ARTICLES_DIR = os.path.join(RAW_DIR,'articles')
@@ -23,6 +24,7 @@ rule all:
         # Public Databases
         '.done/UCSCXena-TCGA-PANCAN.done',
         '.done/MSigDB.done',
+        '.done/GTEx.done',
 
         # ARTICLES
         '.done/Sastry2019.done'
@@ -74,7 +76,50 @@ rule download_ucscxena_tcga_pancan:
         
         echo Done!
         """
+##### GTEx #####
+rule download_gtex:
+    message:
+        "Download data from GTEx."
+    output:
+        touch('.done/GTEx.done'),
         
+        # annotations
+        sampleattr_desc = os.path.join(GTEX_DIR,'annotations','GTEx_Analysis_v8_Annotations_SampleAttributesDD.xlsx'),
+        subjpheno_desc = os.path.join(GTEX_DIR,'annotations','GTEx_Analysis_v8_Annotations_SubjectPhenotypesDD.xlsx'),
+        sampleattr = os.path.join(GTEX_DIR,'annotations','GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt'),
+        subjpheno = os.path.join(GTEX_DIR,'annotations','GTEx_Analysis_v8_Annotations_SubjectPhenotypesDS.txt'),
+        
+        # RNA-Seq
+        gene_counts = os.path.join(GTEX_DIR,'rnaseq','GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_reads.gct.gz'),
+        gene_tpms = os.path.join(GTEX_DIR,'rnaseq','GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_tpm.gct.gz')
+        
+    params:
+        # annotations
+        sampleattr_desc = 'https://storage.googleapis.com/gtex_analysis_v8/annotations/GTEx_Analysis_v8_Annotations_SampleAttributesDD.xlsx',
+        subjpheno_desc = 'https://storage.googleapis.com/gtex_analysis_v8/annotations/GTEx_Analysis_v8_Annotations_SubjectPhenotypesDD.xlsx',
+        sampleattr = 'https://storage.googleapis.com/gtex_analysis_v8/annotations/GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt',
+        subjpheno = 'https://storage.googleapis.com/gtex_analysis_v8/annotations/GTEx_Analysis_v8_Annotations_SubjectPhenotypesDS.txt',
+        
+        # RNA-Seq
+        gene_counts = 'https://storage.googleapis.com/gtex_analysis_v8/rna_seq_data/GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_reads.gct.gz',
+        gene_tpms = 'https://storage.googleapis.com/gtex_analysis_v8/rna_seq_data/GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_tpm.gct.gz'
+        
+    shell:
+        """
+        # annotations
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.sampleattr_desc} -O {output.sampleattr_desc}
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.subjpheno_desc} -O {output.subjpheno_desc}
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.sampleattr} -O {output.sampleattr}
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.subjpheno} -O {output.subjpheno}
+        
+        # RNA-Seq
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.gene_counts} -O {output.gene_counts}
+        wget --user-agent="Chrome" --no-clobber --no-check-certificate {params.gene_tpms} -O {output.gene_tpms}
+
+        echo Done!
+        """
+        
+
 ##### MSigDB #####
 rule download_msigdb:
     params:
