@@ -19,9 +19,7 @@ require(cowplot)
 require(ggrepel)
 require(writexl)
 require(extrafont)
-
-ROOT = here::here()
-source(file.path(ROOT,'src','R','utils.R'))
+require(optparse)
 
 # variables
 FONT_FAMILY = "Arial"
@@ -91,6 +89,7 @@ DATASETS_REF = rbind(
 
 # Development
 # -----------
+# ROOT = here::here()
 # RESULTS_DIR = file.path(ROOT,'results','benchmark_clustering','files')
 # performance_file = file.path(RESULTS_DIR,'clustering_performance_evaluation_merged.tsv.gz')
 # clustering_file = file.path(RESULTS_DIR,'clustering_info_merged.tsv.gz')
@@ -255,7 +254,8 @@ plot_silhouettes = function(clustering, lab='', labsize=0.1){
         distinct(med_time, med_max_memory, med_silhouette, property_oi) %>%
         ggscatter(x='med_time', y='med_max_memory', size='med_silhouette', 
                   color='property_oi', palette=PAL_ALGOS) +
-        geom_text_repel(aes(label=property_oi, color=property_oi),  
+        geom_text(aes(label=round(med_silhouette,2)), color="black", size=2, family=FONT_FAMILY) +
+        geom_text_repel(aes(label=property_oi), color="black",  
                         size=2, family=FONT_FAMILY, segment.size=0.1) +
         labs(x='log10(Median Time (s))', y='log10(Median Max. Memory (MiB))', 
              size='Median Silhouette Score') +
@@ -379,13 +379,28 @@ save_figdata = function(figdata, dir){
 }
 
 
-main = function(){
-    args = getParsedArgs()
-
-    performance_file = args$performance_file
-    clustering_file = args$clustering_file
-    figs_dir = args$figs_dir
+parseargs = function(){
     
+    option_list = list( 
+        make_option("--performance_file", type="character"),
+        make_option("--clustering_file", type="character"),
+        make_option("--dataset_info_file", type="character"),
+        make_option("--figs_dir", type="character")
+    )
+
+    args = parse_args(OptionParser(option_list=option_list))
+    
+    return(args)
+}
+
+
+main = function(){
+    args = parseargs()
+    performance_file = args[["performance_file"]]
+    clustering_file = args[["clustering_file"]]
+    dataset_info_file = args[["dataset_info_file"]]
+    figs_dir = args[["figs_dir"]]
+
     dir.create(figs_dir, recursive = TRUE)
     
     # load data
@@ -434,10 +449,10 @@ main = function(){
         ungroup()
     
     plts = make_plots(performance, clustering)
-    figdata = make_figdata(performance, clustering)
+    #figdata = make_figdata(performance, clustering)
     
     save_plots(plts, figs_dir)
-    save_figdata(figdata, figs_dir)
+    #save_figdata(figdata, figs_dir)
 }
 
 

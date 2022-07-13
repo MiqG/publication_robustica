@@ -27,9 +27,7 @@ require(gridExtra)
 require(circlize)
 require(proxy)
 require(fdrtool)
-
-ROOT = here::here()
-source(file.path(ROOT,'src','R','utils.R'))
+require(optparse)
 
 # variables
 FONT_FAMILY = "Arial"
@@ -40,6 +38,7 @@ PAL_ALGOS = setNames(
 
 # Development
 # -----------
+# ROOT = here::here()
 # PREP_DIR = file.path(ROOT,'data','prep')
 # RESULTS_DIR = file.path(ROOT,'results','benchmark_clustering','files')
 # performance_file = file.path(RESULTS_DIR,'Sastry2019','methods','performance_evaluation_merged.tsv.gz')
@@ -327,12 +326,31 @@ save_figdata = function(figdata, dir){
 }
 
 
-main = function(){
-    args = getParsedArgs()
+parseargs = function(){
+    
+    option_list = list( 
+        make_option("--performance_file", type="character"),
+        make_option("--clustering_file", type="character"),
+        make_option("--pca_components_file", type="character"),
+        make_option("--components_robustica_file", type="character"),
+        make_option("--components_Sastry2019_file", type="character"),
+        make_option("--figs_dir", type="character")
+    )
 
-    performance_file = args$performance_file
-    clustering_file = args$clustering_file
-    figs_dir = args$figs_dir
+    args = parse_args(OptionParser(option_list=option_list))
+    
+    return(args)
+}
+
+
+main = function(){
+    args = parseargs()
+    performance_file = args[["performance_file"]]
+    clustering_file = args[["clustering_file"]]
+    pca_components_file = args[["pca_components_file"]]
+    components_robustica_file = args[["components_robustica_file"]]
+    components_Sastry2019_file = args[["components_Sastry2019_file"]]
+    figs_dir = args[["figs_dir"]]
     
     dir.create(figs_dir, recursive = TRUE)
     
@@ -400,11 +418,11 @@ main = function(){
     
     # visualize
     plts = make_plots(performance, clustering, pca_components,comparison_pearson, comparison_jaccard)
-    figdata = make_figdata(performance, clustering, pca_components)
+    #figdata = make_figdata(performance, clustering, pca_components)
     
     # save
     save_plots(plts, figs_dir)
-    save_figdata(figdata, figs_dir)
+    #save_figdata(figdata, figs_dir)
 }
 
 

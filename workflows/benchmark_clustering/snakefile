@@ -119,7 +119,8 @@ rule all:
         expand(os.path.join(RESULTS_DIR,'files','{dataset}','pca','explained_variance.tsv.gz'), dataset=DATASETS),
         
         # make figures 
-        #expand(os.path.join(RESULTS_DIR,'figures','{dataset}','{property_type}'), dataset=["Sastry2019"], property_type=['methods'])
+        os.path.join(RESULTS_DIR,'figures','Sastry2019'),
+        os.path.join(RESULTS_DIR,'figures','all')
     
     
 rule evaluate_clustering_algorithms:
@@ -232,16 +233,40 @@ rule pca_ica_runs:
         
         
     
-rule figures_benchmark_clustering:
+rule figures_benchmark_clustering_all:
     input:
-        performance = os.path.join(RESULTS_DIR,'files','{dataset}','{property_type}','performance_evaluation_merged.tsv.gz'),
-        clustering = os.path.join(RESULTS_DIR,'files','{dataset}','{property_type}','clustering_info_merged.tsv.gz'),
+        performance = os.path.join(RESULTS_DIR,'files','clustering_performance_evaluation_merged.tsv.gz'),
+        clustering = os.path.join(RESULTS_DIR,'files','clustering_info_merged.tsv.gz'),
+        dataset_info = os.path.join(ROOT,'results','preprocess_data','files','dataset_info.tsv')
     output:
-        directory(os.path.join(RESULTS_DIR,'figures','{dataset}','{property_type}'))
+        directory(os.path.join(RESULTS_DIR,'figures','all'))
     shell:
         """
-        Rscript scripts/figures_benchmark_clustering.R \
+        nice Rscript scripts/figures_benchmark_clustering_all.R \
                     --performance_file={input.performance} \
                     --clustering_file={input.clustering} \
+                    --dataset_info_file={input.dataset_info} \
                     --figs_dir={output}
         """
+        
+        
+rule figures_benchmark_clustering_Sastry2019:
+    input:
+        performance = os.path.join(RESULTS_DIR,'files','Sastry2019','methods','performance_evaluation_merged.tsv.gz'),
+        clustering = os.path.join(RESULTS_DIR,'files','Sastry2019','methods','clustering_info_merged.tsv.gz'),
+        pca_components = os.path.join(RESULTS_DIR,'files','Sastry2019','pca','components.tsv.gz'),
+        components_robustica = os.path.join(RESULTS_DIR,'files','Sastry2019','methods','DBSCAN','DBSCAN-S.tsv.gz'),
+        components_Sastry2019 = os.path.join(PREP_DIR,'original_pipeline_Sastry2019','original','S.csv')
+    output:
+        directory(os.path.join(RESULTS_DIR,'figures','Sastry2019'))
+    shell:
+        """
+        nice Rscript scripts/figures_benchmark_clustering_Sastry2019.R \
+                    --performance_file={input.performance} \
+                    --clustering_file={input.clustering} \
+                    --pca_components_file={input.pca_components} \
+                    --components_robustica_file={input.components_robustica} \
+                    --components_Sastry2019_file={input.components_Sastry2019} \
+                    --figs_dir={output}
+        """
+
