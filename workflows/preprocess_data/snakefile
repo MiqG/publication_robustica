@@ -77,7 +77,10 @@ rule all:
         # run Sastry's ICA pipeline
         expand(os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','S.csv'), distance_func=DISTANCE_FUNCS),
         expand(os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','A.csv'), distance_func=DISTANCE_FUNCS),
-        expand(os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','component_stats.csv'), distance_func=DISTANCE_FUNCS)
+        expand(os.path.join(PREP_DIR,'original_pipeline_Sastry2019','{distance_func}','component_stats.csv'), distance_func=DISTANCE_FUNCS),
+        
+        # figures
+        os.path.join(RESULTS_DIR,'preprocess_data','figures','eda_datasets')
     
     
 rule prepare_metadata_tcga:
@@ -296,4 +299,17 @@ rule clustering_pipeline_Sastry2019:
                     --min_frac={params.min_frac} \
                     --n_iters={params.n_iters} \
                     --output_dir={params.output_dir}
+        """
+        
+        
+rule figures_eda_datasets:
+    input:
+        dataset_info = os.path.join(RESULTS_DIR,'preprocess_data','files','dataset_info.tsv')
+    output:
+        directory(os.path.join(RESULTS_DIR,'preprocess_data','figures','eda_datasets'))
+    shell:
+        """
+        nice Rscript scripts/figures_eda_datasets.R \
+                        --dataset_info_file={input.dataset_info} \
+                        --figs_dir={output}
         """

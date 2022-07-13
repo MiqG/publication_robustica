@@ -1,12 +1,12 @@
 #
 # Author: Miquel Anglada Girotto
 # Contact: miquel [dot] anglada [at] crg [dot] eu
+# Last update: 2022-07-13
 #
 # Script purpose
 # --------------
+# EDA of datasets used in this project.
 #
-# Outline
-# -------
 
 require(tidyverse)
 require(ggpubr)
@@ -15,13 +15,12 @@ require(writexl)
 require(extrafont)
 require(optparse)
 
-ROOT = here::here()
-source(file.path(ROOT,'src','R','utils.R'))
-
+# formatting
 FONT_FAMILY = "Arial"
 
 # Development
 # -----------
+# ROOT = here::here()
 # RESULTS_DIR = file.path(ROOT,'results','preprocess_data','files')
 # dataset_info_file = file.path(RESULTS_DIR,'dataset_info.tsv')
 # figs_dir = file.path(ROOT,'results','preprocess_data','figures','eda_datasets')
@@ -96,18 +95,30 @@ save_figdata = function(figdata, dir){
 }
 
 
-main = function(){
-    args = getParsedArgs()
+parseargs = function(){
+    
+    option_list = list( 
+        make_option("--dataset_info_file", type="character"),
+        make_option("--figs_dir", type="character")
+    )
 
-    dataset_info_file = args$dataset_info_file
-    figs_dir = args$figs_dir
+    args = parse_args(OptionParser(option_list=option_list))
+    
+    return(args)
+}
+
+
+main = function(){
+    args = parseargs()
+    dataset_info_file = args[["dataset_info_file"]]
+    figs_dir = args[["figs_dir"]]
     
     dir.create(figs_dir, recursive = TRUE)
     
     # load data
     dataset_info = read_tsv(dataset_info_file) %>%
         mutate(label = paste0(main, " | ", dataset),
-               label = gsub("Sastry2019 \|","",label))
+               label = gsub("Sastry2019 \\|","",label))
     
     plts = make_plots(dataset_info)
     figdata = make_figdata(dataset_info)
