@@ -17,7 +17,6 @@ require(tidyverse)
 require(ggpubr)
 require(cowplot)
 require(ggrepel)
-require(writexl)
 require(extrafont)
 require(optparse)
 

@@ -10,7 +10,6 @@
 require(tidyverse)
 require(fdrtool)
 require(clusterProfiler)
-require(org.Hs.eg.db)
 require(optparse)
 
 # variables
