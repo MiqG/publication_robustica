@@ -276,61 +276,43 @@ make_plots = function(clustering_eval, mapping_eval, mapping_robust){
 }
 
 
-make_figdata = function(performance_evaluation, clustering_evaluation, 
-                        S_info, A_info, module_comparisons, 
-                        mapping_eval, mapping_robust){
+make_figdata = function(clustering_eval, mapping_eval, mapping_robust){
+    summary_clustering = clustering_eval %>% 
+        group_by(dataset, algorithm, time, max_memory, cluster_id) %>% 
+        summarize(mean_silhouette = mean(silhouette_euclidean)) %>%
+        ungroup() %>%
+        group_by(dataset, algorithm, time, max_memory) %>%
+        summarize(
+            mean=mean(mean_silhouette), 
+            median=median(mean_silhouette), 
+            std=sd(mean_silhouette), 
+            range=max(mean_silhouette) - min(mean_silhouette)
+        ) %>%
+        ungroup()
     
-    # prep
-    ## gene module evaluation
-    modules = S_info %>%
-        group_by(algorithm, component) %>%
-        mutate(in_module=define_module(weight_mean))
-    sim = module_comparisons[['sim']]
-    sim = matrix(sim, nrow = nrow(sim), ncol=ncol(sim), dimnames = dimnames(sim)) %>% 
-        as.data.frame()
-    mapping = module_comparisons[['mapping']]
-    
-    # prepare figdata object
-    figdata = list()
-    figdata[['benchmark_sign_inference-ICA-source_matrices-weight_means']] = S_info %>% 
-        named_group_split(algorithm) %>% 
-        map(~ pivot_wider(data = ., id_cols = gene, 
-                          names_from = component, values_from = weight_mean))
-    figdata[['benchmark_sign_inference-ICA-source_matrices-weight_stds']] = S_info %>% 
-        named_group_split(algorithm) %>% 
-        map(~ pivot_wider(data = ., id_cols = gene, 
-                          names_from = component, values_from = weight_std))
-    figdata[['benchmark_sign_inference-ICA-mixing_matrices-weight_means']] = A_info %>% 
-        named_group_split(algorithm) %>% 
-        map(~ pivot_wider(data = ., id_cols = sample, 
-                          names_from = component, values_from = weight_mean))
-    figdata[['benchmark_sign_inference-ICA-mixing_matrices-weight_stds']] = A_info %>% 
-        named_group_split(algorithm) %>% 
-        map(~ pivot_wider(data = ., id_cols = sample, 
-                          names_from = component, values_from = weight_std))
-    figdata[['benchmark_sign_inference-gene_modules']] = modules %>% 
-        named_group_split(algorithm) %>% 
-        map(~ pivot_wider(data = ., id_cols = gene, 
-                          names_from = component, values_from = in_module))
-    
-    figdata[['benchmark_sign_inference-evaluation']] = list(
-        performance_evaluation = performance_evaluation,
-        clustering_evaluation = clustering_evaluation,
-        module_mapping_diff_runs = mapping_eval,
-        module_mapping_robustness = mapping_robust,
-        gene_modules_jaccard_similarity = sim %>% rownames_to_column('component'),
-        gene_modules_mapping = mapping
+    figdata = list(
+        'benchmark_clustering-evaluation' = list(
+            'clustering_evaluation' = clustering_eval,
+            'clustering_evaluation_summary' = summary_clustering,
+            'module_mapping_diff_runs' = mapping_eval,
+            'module_mapping_robustness' = mapping_robust
+        )
     )
-    
     return(figdata)
 }
 
 
 save_figdata = function(figdata, dir){
     lapply(names(figdata), function(x){
-        filename = file.path(dir,'figdata',paste0(x,'.xlsx'))
-        dir.create(dirname(filename), recursive=TRUE)
-        write_xlsx(figdata[[x]], filename)
+        d = file.path(dir,'figdata',x)
+        dir.create(d, recursive=TRUE)
+        lapply(names(figdata[[x]]), function(nm){
+            df = figdata[[x]][[nm]]
+            filename = file.path(d, paste0(nm,'.tsv.gz'))
+            write_tsv(df, filename)
+            
+            print(filename)
+        })
     })
 }
 
@@ -443,11 +425,11 @@ main = function(){
     
     # visualize
     plts = make_plots(clustering_eval, mapping_eval, mapping_robust)
-    #figdata = make_figdata()
+    figdata = make_figdata(clustering_eval, mapping_eval, mapping_robust)
     
     # save
     save_plots(plts, figs_dir)
-    # save_figdata(figdata, figs_dir)
+    save_figdata(figdata, figs_dir)
 }
 
 
