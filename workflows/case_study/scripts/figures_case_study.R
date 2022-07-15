@@ -519,6 +519,62 @@ make_plots = function(performance, clustering_eval, comparison_pearson,
 }
 
 
+make_figdata = function(
+    performance, clustering_eval, 
+    S_icasso, S_std_icasso, S_robustica_pca, S_std_robustica_pca, A_robustica_pca,
+    mapping,
+    snv, results, metadata,
+    enrichments, modules_robustica_pca
+){
+    
+    summary_clustering = clustering_eval %>% 
+        group_by(algorithm, time, max_memory, cluster_id) %>% 
+        summarize(mean_silhouette = mean(silhouette_euclidean)) %>%
+        group_by(algorithm, time, max_memory) %>%
+        summarize(
+            mean=mean(mean_silhouette), 
+            median=median(mean_silhouette), 
+            std=sd(mean_silhouette), 
+            range=max(mean_silhouette) - min(mean_silhouette)
+        )
+    
+    figdata = list(
+        'case_study' = list(
+            'performance_evaluation' = performance,
+            'clustering_evaluation' = clustering_eval,
+            'clustering_evaluation_summary' = summary_clustering,
+            'ica-source_matrix_weight_means-icasso-LGG' = S_icasso,
+            'ica-source_matrix_weight_stds-icasso-LGG' = S_std_icasso,
+            'ica-source_matrix_weight_means-robustica_pca-LGG' = S_robustica_pca,
+            'ica-source_matrix_weight_stds-robustica_pca-LGG' = S_std_robustica_pca,
+            'ica-mixing_matrix_weight_means-robustica_pca-LGG' = A_robustica_pca,
+            'mapping_evaluation-robustica_pca_vs_icasso-LGG' = mapping,
+            'LGG-snv' = snv,
+            'LGG-sample_metadata' = metadata,
+            'LGG-sample_associations' = results,
+            'LGG-gene_overlap_analysis' = enrichments,
+            'LGG-modules-robustica_pca' = modules_robustica_pca %>% as.data.frame()
+        )
+    )
+    return(figdata)
+}
+
+
+save_figdata = function(figdata, dir){
+    lapply(names(figdata), function(x){
+        d = file.path(dir,'figdata',x)
+        dir.create(d, recursive=TRUE)
+        lapply(names(figdata[[x]]), function(nm){
+            df = figdata[[x]][[nm]]
+            filename = file.path(d, paste0(nm,'.tsv.gz'))
+            write_tsv(df, filename)
+            
+            print(filename)
+        })
+    })
+}
+
+
 save_plt = function(plts, plt_name, extension=".pdf", 
                     directory="", dpi=350, format=TRUE,
                     width = par("din")[1], height = par("din")[2]){
@@ -722,10 +778,17 @@ main = function(){
                       comparison_jaccard, mapping,
                       snv, results, metadata, A_robustica_pca, S_robustica_pca, 
                       enrichments, modules_robustica_pca)
+    figdata = make_figdata(
+        performance, clustering_eval, 
+        S_icasso, S_std_icasso, S_robustica_pca, S_std_robustica_pca, A_robustica_pca,
+        mapping,
+        snv, results, metadata,
+        enrichments, modules_robustica_pca
+    )
     
     # save
     save_plots(plts, figs_dir)
-    # save_figdata(figdata, figs_dir)
+    save_figdata(figdata, figs_dir)
 }
 
 ###### SCRIPT ######
