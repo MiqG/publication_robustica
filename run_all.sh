@@ -35,8 +35,15 @@ echo "Analyzing case study..."
 snakemake -s workflows/case_study/snakefile --cores=$NCORES
 echo "Finished analyzing case study."
 
+
 echo "Making intro figures..."
 snakemake -s workflows/case_study/snakefile --cores=$NCORES
 echo "Finished making intro figures."
+
+
+echo "Making supplementary tables..."
+snakemake -s workflows/prepare_publication/snakefile --cores=$NCORES
+echo "Finished making supplementary tables."
+
 
 echo "Done!"
