@@ -46,7 +46,7 @@ PAL_ALGOS = setNames(
 # pca_components_file = file.path(RESULTS_DIR,'Sastry2019','pca','components.tsv.gz')
 # components_robustica_file = file.path(RESULTS_DIR,'Sastry2019','methods','DBSCAN','DBSCAN-S.tsv.gz')
 # components_Sastry2019_file = file.path(PREP_DIR,'original_pipeline_Sastry2019','original','S.csv')
-# figs_dir = file.path(ROOT,'results','benchmark_clustering','figures','Sastry2019','methods')
+# figs_dir = file.path(ROOT,'results','benchmark_clustering','figures','Sastry2019')
 
 
 ##### FUNCTIONS #####
@@ -55,6 +55,7 @@ define_module = function(x, cutoff=0.01){
     x = fdr < cutoff
     return(x)
 }
+
 
 plot_performance_profile = function(performance){
     X = performance
@@ -257,7 +258,9 @@ make_plots = function(performance, clustering, pca_components,comparison_pearson
 }
 
 
-make_figdata = function(performance, clustering, pca_components){
+make_figdata = function(performance, clustering, pca_components, 
+                        components_robustica, components_Sastry2019){
+    
     summary_clustering = clustering %>% 
         group_by(property_oi, time, max_memory, cluster_id) %>% 
         summarize(mean_silhouette = mean(silhouette_euclidean)) %>%
@@ -274,7 +277,9 @@ make_figdata = function(performance, clustering, pca_components){
             'performance_evaluation' = performance,
             'clustering_evaluation' = clustering,
             'clustering_evaluation_summary' = summary_clustering,
-            'pca_components' = pca_components
+            'pca_components' = pca_components,
+            'ica-source_matrix-robustica' = components_robustica,
+            'ica-source_matrix-Sastry2019' = components_Sastry2019
         )
     )
     return(figdata)
@@ -319,9 +324,15 @@ save_plots = function(plts, figs_dir){
 
 save_figdata = function(figdata, dir){
     lapply(names(figdata), function(x){
-        filename = file.path(dir,'figdata',paste0(x,'.xlsx'))
-        dir.create(dirname(filename), recursive=TRUE)
-        write_xlsx(figdata[[x]], filename)
+        d = file.path(dir,'figdata',x)
+        dir.create(d, recursive=TRUE)
+        lapply(names(figdata[[x]]), function(nm){
+            df = figdata[[x]][[nm]]
+            filename = file.path(d, paste0(nm,'.tsv.gz'))
+            write_tsv(df, filename)
+            
+            print(filename)
+        })
     })
 }
 
@@ -417,12 +428,13 @@ main = function(){
                                method='Jaccard', by_rows=FALSE)
     
     # visualize
-    plts = make_plots(performance, clustering, pca_components,comparison_pearson, comparison_jaccard)
-    #figdata = make_figdata(performance, clustering, pca_components)
+    plts = make_plots(performance, clustering, pca_components, comparison_pearson, comparison_jaccard)
+    figdata = make_figdata(performance, clustering, pca_components, 
+                           components_robustica, components_Sastry2019)
     
     # save
     save_plots(plts, figs_dir)
-    #save_figdata(figdata, figs_dir)
+    save_figdata(figdata, figs_dir)
 }
 
 
