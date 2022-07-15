@@ -1,9 +1,8 @@
 """
 Workflow purpose
 ----------------
+Combine results from different workflows for publication.
 
-Outline
--------
 """
 
 import os

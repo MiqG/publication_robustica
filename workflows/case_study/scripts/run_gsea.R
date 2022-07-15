@@ -4,7 +4,7 @@
 #
 # Script purpose
 # --------------
-# EDA of gene dependencies regressed on event PSI and gene TPMs.
+# Run gene set overlap analysis with the modules of independent components.
 #
 
 require(tidyverse)

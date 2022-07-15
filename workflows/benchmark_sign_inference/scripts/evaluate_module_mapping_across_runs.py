@@ -4,7 +4,8 @@
 #
 # Script purpose
 # --------------
-#
+# Evaluate how reproducible gene modules are when using an increasing amount of
+# runs (instead of 100) compared to all runs, to produce robust independent components.
 
 import argparse
 import os

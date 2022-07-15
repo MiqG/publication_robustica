@@ -1,13 +1,7 @@
 """
-
 Workflow purpose
 ----------------
 Preprocess raw data.
-
-Outline
--------
-1. Combine TCGA clinical and survival data into full metadata.
-2. Subset TCGA PANCAN gene expression matrix by cancer type.
 """
 
 import os

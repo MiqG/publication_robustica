@@ -4,7 +4,8 @@
 #
 # Script purpose
 # --------------
-#
+# Evaluate how robust is the computation of robust independent components
+# applying random noise based on the centroid's mean and standard deviation.
 
 import argparse
 import os

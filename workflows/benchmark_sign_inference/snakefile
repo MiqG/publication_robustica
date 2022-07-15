@@ -1,13 +1,13 @@
 """
 Workflow purpose
 ----------------
-Evaluate the performance impact of changing the algorithm.
+Evaluate the performance impact of using different clustering distances.
 
 Outline
 -------
-1. Cluster 100 ICA runs and cluster:
+1. 100 ICA runs with:
     - the default algorithm (Icasso): 
-        1) Distance Matrix
+        1) Pearson Distance Matrix
         2) Agglomerative clustering
         3) Compute centroids
         
@@ -25,6 +25,13 @@ Outline
         2) compress feature space: PCA
         3) Agglomerative clustering
         4) Compute centroids
+        
+     - Icasso + PCA
+        1) Correct signs
+        2) compress feature space: PCA
+        3) Pearson Distance Matrix
+        4) Agglomerative clustering
+        5) Compute centroids
         
 2. make figures
 """

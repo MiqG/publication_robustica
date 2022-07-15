@@ -5,12 +5,8 @@
 # Script purpose
 # --------------
 # Evaluate the performance in terms of memory and execution time of the
-# different algorithms to compute robust independent components.
+# different algorithms to compute robust independent components across all datasets.
 #
-# Outline
-# -------
-# - memory usage and time spent for every algorithm
-# - silhouette scores of every algorithm
 
 
 require(tidyverse)

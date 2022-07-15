@@ -4,8 +4,7 @@
 #
 # Script purpose
 # --------------
-# Evaluate differenti clustering metrics on AgglomerativeClustering and different
-# clustering methods using absolute pearson correlation dissimilarity.
+# Evaluate different clustering algorithms.
 
 import argparse
 import os

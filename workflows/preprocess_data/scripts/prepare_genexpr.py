@@ -4,7 +4,7 @@
 #
 # Script purpose
 # --------------
-# Preprocess raw metadata.
+# Preprocess raw transcriptomic signatures.
 #
 
 import os

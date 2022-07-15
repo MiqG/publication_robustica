@@ -1,34 +1,7 @@
 """
 Workflow purpose
 ----------------
-Evaluate the performance of different metrics using agglomerative clustering and
-different clustering algorithms using the best metric.
-
-Outline
--------
-1. Use our benchmark dataset to compute robust independent components with any
-available metric in `sklearn` using AgglomerativeClustering:
-    - euclidean
-    - l1
-    - l2
-    - manhattan
-    - cosine
-    - precomputed (abs_pearson)
-2. Use benchmark dataset to compute robust independent components with available default clustering algorithms (if distance not precomputed, we always compress dimensions with PCA):
-    - Icasso (abs_pearson + AgglomerativeClustering)
-    - AffinityPropagation
-    - AgglomerativeClustering
-    - Birch
-    - DBSCAN
-    - FeatureAgglomeration
-    - KMeans
-    - MiniBatchKMeans
-    - Meanshift
-    - OPTICS
-    - SpectralClustering
-    - KMedoids
-    - CommonNNClustering
-3. make figures
+Evaluate the performance of different clustering algorithms.
 """
 
 import os

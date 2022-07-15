@@ -5,12 +5,11 @@
 # Script purpose
 # --------------
 # Evaluate the performance in terms of memory and execution time of the
-# different algorithms to compute robust independent components.
-#
-# Outline
-# -------
-# - memory usage and time spent for every algorithm
-# - silhouette scores of every algorithm
+# different algorithms to compute robust independent components for the Sastry dataset.
+# Plot PCA of all independent components colored by clusters and compare robust independent
+# components obtained using Sastry's approach.
+# 
+
 
 
 require(tidyverse)

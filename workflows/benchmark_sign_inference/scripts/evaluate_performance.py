@@ -7,30 +7,6 @@
 # Run different algorithms to perform robust ICA and prove that our
 # sign correction allows for different clustering methods.
 #
-# Outline
-# -------
-# We will compare 4 different algorithms:
-# - icasso: the standard
-# - robustica: allows fully customizable clustering algorithm thanks to our
-#   method to guess component signs.
-# - robustica_nosign: to check what happens when we don't correct component
-#   signs and use a different clustering metric.
-# - robustica_pca: to check if compressing the feature space speeds up the
-#   algorithm.
-#
-# We will record:
-# - Performance
-#     - memory usage of every step of the algorithm
-#     - time spent in every step of the algorithm
-# - Clustering
-#     - labels
-#     - signs
-#     - final orientation
-#     - Silhouette scores w/ absolute pearson and euclidean metrics
-#     - Validation scores with the ground truth set
-#        - maximum R2
-#        - maximum absolute pearson
-#        - minimum distance
 
 import argparse
 import os

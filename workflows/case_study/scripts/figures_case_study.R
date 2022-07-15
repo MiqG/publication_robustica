@@ -4,18 +4,9 @@
 #
 # Script purpose
 # --------------
-# Interpret the independent components.
+# Interpret biologically the independent components.
 #
-# Outline
-# -------
-# - Which components differentiate IDH1 mutant from WT samples?
-#     - barplot of mut vs wt sample counts
-#     - wilcoxon test + FDR, select components of interest
-#     - volcano plot of statistical test
-#     - heatmap of A all components
-#     - heatmap of A components of interest
-# - Which biological processes are enriched in those components?
-# - How certain are we of these components?
+
 
 require(tidyverse)
 require(cowplot)
