@@ -38,34 +38,29 @@ rule supplementary_tables:
         suptab04_benchmark_clustering = os.path.join(BENCHCLUS_ALL_DIR,'clustering_evaluation_summary.tsv.gz'),
         
         # benchmark clustering - Sastry2019
-        suptab05_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'performance_evaluation.tsv.gz'),
-        suptab06_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'clustering_evaluation.tsv.gz'),
-        suptab07_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'clustering_evaluation_summary.tsv.gz'),
-        suptab08_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'pca_components.tsv.gz'),
-        suptab09_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'ica-source_matrix-robustica.tsv.gz'),
-        suptab10_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'ica-source_matrix-Sastry2019.tsv.gz'),
+        suptab05_benchmark_clustering_Sastry2019 = os.path.join(BENCHCLUS_Sastry2019_DIR,'pca_components.tsv.gz'),
+        suptab06_benchmark_clustering_Sastry2019 = os.path.join(BENCHCLUS_Sastry2019_DIR,'ica-source_matrix-robustica.tsv.gz'),
+        suptab07_benchmark_clustering_Sastry2019 = os.path.join(BENCHCLUS_Sastry2019_DIR,'ica-source_matrix-Sastry2019.tsv.gz'),
         
         # benchmark sign
-        suptab11_benchmark_sign = os.path.join(BENCHSIGN_DIR,'clustering_evaluation.tsv.gz'),
-        suptab12_benchmark_sign = os.path.join(BENCHSIGN_DIR,'clustering_evaluation_summary.tsv.gz'),
-        suptab13_benchmark_sign = os.path.join(BENCHSIGN_DIR,'module_mapping_diff_runs.tsv.gz'),
-        suptab14_benchmark_sign = os.path.join(BENCHSIGN_DIR,'module_mapping_robustness.tsv.gz'),
+        suptab08_benchmark_sign = os.path.join(BENCHSIGN_DIR,'clustering_evaluation.tsv.gz'),
+        suptab09_benchmark_sign = os.path.join(BENCHSIGN_DIR,'clustering_evaluation_summary.tsv.gz'),
+        suptab10_benchmark_sign = os.path.join(BENCHSIGN_DIR,'module_mapping_robustness.tsv.gz'),
+        suptab11_benchmark_sign = os.path.join(BENCHSIGN_DIR,'module_mapping_diff_runs.tsv.gz'),
         
         # case study
-        suptab15_case_study = os.path.join(CASESTUDY_DIR,'performance_evaluation.tsv.gz'),
-        suptab16_case_study = os.path.join(CASESTUDY_DIR,'clustering_evaluation.tsv.gz'),
-        suptab17_case_study = os.path.join(CASESTUDY_DIR,'clustering_evaluation_summary.tsv.gz'),
-        suptab18_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_means-icasso-LGG.tsv.gz'),
-        suptab19_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_stds-icasso-LGG.tsv.gz'),
-        suptab20_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_means-robustica_pca-LGG.tsv.gz'),
-        suptab21_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_stds-robustica_pca-LGG.tsv.gz'),
-        suptab22_case_study = os.path.join(CASESTUDY_DIR,'ica-mixing_matrix_weight_means-robustica_pca-LGG.tsv.gz'),
-        suptab23_case_study = os.path.join(CASESTUDY_DIR,'mapping_evaluation-robustica_pca_vs_icasso-LGG.tsv.gz'),
-        suptab24_case_study = os.path.join(CASESTUDY_DIR,'LGG-snv.tsv.gz'),
-        suptab25_case_study = os.path.join(CASESTUDY_DIR,'LGG-sample_metadata.tsv.gz'),
-        suptab26_case_study = os.path.join(CASESTUDY_DIR,'LGG-sample_associations.tsv.gz'),
-        suptab27_case_study = os.path.join(CASESTUDY_DIR,'LGG-gene_overlap_analysis.tsv.gz'),
-        suptab28_case_study = os.path.join(CASESTUDY_DIR,'LGG-modules-robustica_pca.tsv.gz')
+        suptab12_case_study = os.path.join(CASESTUDY_DIR,'performance_evaluation.tsv.gz'),
+        suptab13_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_means-icasso-LGG.tsv.gz'),
+        suptab14_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_stds-icasso-LGG.tsv.gz'),
+        suptab15_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_means-robustica_pca-LGG.tsv.gz'),
+        suptab16_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_stds-robustica_pca-LGG.tsv.gz'),
+        suptab17_case_study = os.path.join(CASESTUDY_DIR,'ica-mixing_matrix_weight_means-robustica_pca-LGG.tsv.gz'),
+        suptab18_case_study = os.path.join(CASESTUDY_DIR,'mapping_evaluation-robustica_pca_vs_icasso-LGG.tsv.gz'),
+        suptab19_case_study = os.path.join(CASESTUDY_DIR,'LGG-snv.tsv.gz'),
+        suptab20_case_study = os.path.join(CASESTUDY_DIR,'LGG-sample_metadata.tsv.gz'),
+        suptab21_case_study = os.path.join(CASESTUDY_DIR,'LGG-sample_associations.tsv.gz'),
+        suptab22_case_study = os.path.join(CASESTUDY_DIR,'LGG-modules-robustica_pca.tsv.gz'),
+        suptab23_case_study = os.path.join(CASESTUDY_DIR,'LGG-gene_overlap_analysis.tsv.gz')
         
     output:
         directory(os.path.join(RESULTS_DIR,'prepare_publication','files','supplementary_tables'))
