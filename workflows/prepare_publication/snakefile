@@ -1,0 +1,86 @@
+"""
+Workflow purpose
+----------------
+
+Outline
+-------
+"""
+
+import os
+import pandas as pd
+
+##### VARIABLES #####
+ROOT = os.path.dirname(os.path.dirname(os.getcwd()))
+DATA_DIR = os.path.join(ROOT,'data')
+RAW_DIR = os.path.join(DATA_DIR,'raw')
+PREP_DIR = os.path.join(DATA_DIR,'prep')
+RESULTS_DIR = os.path.join(ROOT,'results')
+
+DATA_INFO_DIR = os.path.join(RESULTS_DIR,'preprocess_data','figures','eda_datasets','figdata','eda_datasets')
+BENCHCLUS_ALL_DIR = os.path.join(RESULTS_DIR,'benchmark_clustering','figures','all','figdata','benchmark_clustering-evaluation')
+BENCHCLUS_Sastry2019_DIR = os.path.join(RESULTS_DIR,'benchmark_clustering','figures','Sastry2019','figdata','benchmark_clustering-evaluation')
+BENCHSIGN_DIR = os.path.join(RESULTS_DIR,'benchmark_sign_inference','figures','all','figdata','benchmark_clustering-evaluation')
+CASESTUDY_DIR = os.path.join(RESULTS_DIR,'case_study','figures','LGG','figdata','case_study')
+
+##### RULES #####
+rule all:
+    input:
+        os.path.join(RESULTS_DIR,'prepare_publication','files','supplementary_tables')
+        
+rule supplementary_tables:
+    input:
+        # data info
+        suptab01 = os.path.join(DATA_INFO_DIR,'dataset_info.tsv.gz'),
+        
+        # benchmark clustering - all
+        suptab02_benchmark_clustering = os.path.join(BENCHCLUS_ALL_DIR,'performance_evaluation.tsv.gz'),
+        suptab03_benchmark_clustering = os.path.join(BENCHCLUS_ALL_DIR,'clustering_evaluation.tsv.gz'),
+        suptab04_benchmark_clustering = os.path.join(BENCHCLUS_ALL_DIR,'clustering_evaluation_summary.tsv.gz'),
+        
+        # benchmark clustering - Sastry2019
+        suptab05_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'performance_evaluation.tsv.gz'),
+        suptab06_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'clustering_evaluation.tsv.gz'),
+        suptab07_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'clustering_evaluation_summary.tsv.gz'),
+        suptab08_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'pca_components.tsv.gz'),
+        suptab09_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'ica-source_matrix-robustica.tsv.gz'),
+        suptab10_benchmark_clustering = os.path.join(BENCHCLUS_Sastry2019_DIR,'ica-source_matrix-Sastry2019.tsv.gz'),
+        
+        # benchmark sign
+        suptab11_benchmark_sign = os.path.join(BENCHSIGN_DIR,'clustering_evaluation.tsv.gz'),
+        suptab12_benchmark_sign = os.path.join(BENCHSIGN_DIR,'clustering_evaluation_summary.tsv.gz'),
+        suptab13_benchmark_sign = os.path.join(BENCHSIGN_DIR,'module_mapping_diff_runs.tsv.gz'),
+        suptab14_benchmark_sign = os.path.join(BENCHSIGN_DIR,'module_mapping_robustness.tsv.gz'),
+        
+        # case study
+        suptab15_case_study = os.path.join(CASESTUDY_DIR,'performance_evaluation.tsv.gz'),
+        suptab16_case_study = os.path.join(CASESTUDY_DIR,'clustering_evaluation.tsv.gz'),
+        suptab17_case_study = os.path.join(CASESTUDY_DIR,'clustering_evaluation_summary.tsv.gz'),
+        suptab18_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_means-icasso-LGG.tsv.gz'),
+        suptab19_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_stds-icasso-LGG.tsv.gz'),
+        suptab20_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_means-robustica_pca-LGG.tsv.gz'),
+        suptab21_case_study = os.path.join(CASESTUDY_DIR,'ica-source_matrix_weight_stds-robustica_pca-LGG.tsv.gz'),
+        suptab22_case_study = os.path.join(CASESTUDY_DIR,'ica-mixing_matrix_weight_means-robustica_pca-LGG.tsv.gz'),
+        suptab23_case_study = os.path.join(CASESTUDY_DIR,'mapping_evaluation-robustica_pca_vs_icasso-LGG.tsv.gz'),
+        suptab24_case_study = os.path.join(CASESTUDY_DIR,'LGG-snv.tsv.gz'),
+        suptab25_case_study = os.path.join(CASESTUDY_DIR,'LGG-sample_metadata.tsv.gz'),
+        suptab26_case_study = os.path.join(CASESTUDY_DIR,'LGG-sample_associations.tsv.gz'),
+        suptab27_case_study = os.path.join(CASESTUDY_DIR,'LGG-gene_overlap_analysis.tsv.gz'),
+        suptab28_case_study = os.path.join(CASESTUDY_DIR,'LGG-modules-robustica_pca.tsv.gz')
+        
+    output:
+        directory(os.path.join(RESULTS_DIR,'prepare_publication','files','supplementary_tables'))
+    run:
+        import os
+        import subprocess
+        
+        outdir = output[0]
+        os.makedirs(outdir, exist_ok=True)
+        
+        for key, f in input.items():
+            filename = os.path.basename(f)
+            outfile = os.path.join(outdir,key+"-"+filename)
+            cmd = ["cp", f, outfile]
+            print(cmd)
+            subprocess.call(cmd)
+            
+        print("Done!")
