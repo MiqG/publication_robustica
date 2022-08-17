@@ -11,7 +11,6 @@
 # 
 
 
-
 require(tidyverse)
 require(ggpubr)
 require(cowplot)
@@ -79,7 +78,7 @@ plot_silhouettes = function(clustering, lab='', labsize=0.1){
     X = clustering %>% 
         dplyr::select(cluster_id, property_oi, time, 
                       max_memory, silhouette_euclidean) %>%
-        melt(id.vars = c('cluster_id','property_oi','time','max_memory')) %>%
+        pivot_longer(silhouette_euclidean, names_to="variable") %>% 
         mutate(time=as.numeric(time)) %>%
         group_by(property_oi, time, max_memory, cluster_id) %>%
         summarize(value=mean(value), # keep the mean silhouette per cluster
@@ -243,10 +242,33 @@ plot_comparison_methods = function(comparison_pearson, comparison_jaccard){
 }
 
 
+plot_comparison_silhouette_metrics = function(clustering){
+    # average silhouette scores per cluster are equivalent with both metrics
+    X = clustering %>% 
+        group_by(property_oi, dataset, cluster_id) %>% 
+        summarize(
+            silhouette_euclidean = mean(silhouette_euclidean), 
+            silhouette_pearson = mean(silhouette_pearson)) 
+    
+    plts = list()
+    plts[["comparison_silhouette_metrics-scatter"]] = X %>%
+        ggscatter(x="silhouette_euclidean", y="silhouette_pearson", size=0.1, 
+                  color='property_oi', palette=PAL_ALGOS, alpha=0.5) + 
+        facet_wrap(~property_oi) +
+        theme(strip.text.x = element_text(size=6, family=FONT_FAMILY)) +
+        labs(x='Silhouette Score Euclidean', y='Silhouette Score Pearson') +
+        theme(aspect.ratio=1) +
+        guides(color="none")
+    
+    return(plts)
+}
+
+
 make_plots = function(performance, clustering, pca_components,comparison_pearson, comparison_jaccard){
     plts = list(
         plot_performance_profile(performance),
         plot_silhouettes(clustering),
+        plot_comparison_silhouette_metrics(clustering),
         plot_pca(pca_components, clustering),
         plot_comparison_methods(comparison_pearson, comparison_jaccard)
     )
@@ -260,13 +282,21 @@ make_figdata = function(performance, clustering, pca_components,
     
     summary_clustering = clustering %>% 
         group_by(property_oi, time, max_memory, cluster_id) %>% 
-        summarize(mean_silhouette = mean(silhouette_euclidean)) %>%
+        summarize(
+            mean_silhouette_euclidean = mean(silhouette_euclidean),
+            mean_silhouette_pearson = mean(silhouette_pearson)
+        ) %>%
         group_by(property_oi, time, max_memory) %>%
         summarize(
-            mean=mean(mean_silhouette), 
-            median=median(mean_silhouette), 
-            std=sd(mean_silhouette), 
-            range=max(mean_silhouette) - min(mean_silhouette)
+            silhouette_euclidean_mean = mean(mean_silhouette_euclidean), 
+            silhouette_euclidean_median = median(mean_silhouette_euclidean), 
+            silhouette_euclidean_std = sd(mean_silhouette_euclidean), 
+            silhouette_euclidean_range = max(mean_silhouette_euclidean) - min(mean_silhouette_euclidean),
+            
+            silhouette_pearson_mean = mean(mean_silhouette_pearson), 
+            silhouette_pearson_median = median(mean_silhouette_pearson), 
+            silhouette_pearson_std = sd(mean_silhouette_pearson), 
+            silhouette_pearson_range = max(mean_silhouette_pearson) - min(mean_silhouette_pearson)
         )
     
     figdata = list(
@@ -316,6 +346,8 @@ save_plots = function(plts, figs_dir){
     save_plt(plts, 'comparison_methods-n_components','.pdf',figs_dir, width=4, height=4)
     save_plt(plts, 'comparison_methods-pearson-heatmap','.pdf',figs_dir, width=13, height=11)
     save_plt(plts, 'comparison_methods-jaccard-heatmap','.pdf',figs_dir, width=13, height=11)
+    
+    save_plt(plts, 'comparison_silhouette_metrics-scatter','.pdf',figs_dir, width=9, height=7.5)
 }
 
 
@@ -425,7 +457,9 @@ main = function(){
                                method='Jaccard', by_rows=FALSE)
     
     # visualize
+    ## general
     plts = make_plots(performance, clustering, pca_components, comparison_pearson, comparison_jaccard)
+    ## make figure data
     figdata = make_figdata(performance, clustering, pca_components, 
                            components_robustica, components_Sastry2019)
     
