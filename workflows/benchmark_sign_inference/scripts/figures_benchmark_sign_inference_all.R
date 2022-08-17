@@ -266,17 +266,24 @@ make_plots = function(clustering_eval, mapping_eval, mapping_robust){
 }
 
 
-make_figdata = function(clustering_eval, mapping_eval, mapping_robust){
+make_figdata = function(clustering_eval, mapping_eval, mapping_robust){   
     summary_clustering = clustering_eval %>% 
         group_by(dataset, algorithm, time, max_memory, cluster_id) %>% 
-        summarize(mean_silhouette = mean(silhouette_euclidean)) %>%
-        ungroup() %>%
+        summarize(
+            mean_silhouette_euclidean = mean(silhouette_euclidean),
+            mean_silhouette_pearson = mean(silhouette_pearson)
+        ) %>%
         group_by(dataset, algorithm, time, max_memory) %>%
         summarize(
-            mean=mean(mean_silhouette), 
-            median=median(mean_silhouette), 
-            std=sd(mean_silhouette), 
-            range=max(mean_silhouette) - min(mean_silhouette)
+            silhouette_euclidean_mean = mean(mean_silhouette_euclidean), 
+            silhouette_euclidean_median = median(mean_silhouette_euclidean), 
+            silhouette_euclidean_std = sd(mean_silhouette_euclidean), 
+            silhouette_euclidean_range = max(mean_silhouette_euclidean) - min(mean_silhouette_euclidean),
+            
+            silhouette_pearson_mean = mean(mean_silhouette_pearson), 
+            silhouette_pearson_median = median(mean_silhouette_pearson), 
+            silhouette_pearson_std = sd(mean_silhouette_pearson), 
+            silhouette_pearson_range = max(mean_silhouette_pearson) - min(mean_silhouette_pearson)
         ) %>%
         ungroup()
     
@@ -333,6 +340,9 @@ save_plots = function(plts, figs_dir){
     save_plt(plts,'mapping_eval-runs_vs_jaccard','.pdf',figs_dir, width=5, height=5)
     save_plt(plts,'mapping_eval-runs_vs_n_components','.pdf',figs_dir, width=5, height=5)
     save_plt(plts,'mapping_robust-metric_vs_jaccard','.pdf',figs_dir, width=5, height=5)
+    
+    save_plt(plts,'w_silhouette_pearson-clustering_eval-metric_vs_silhouette','.pdf',figs_dir, width=5, height=5)
+    save_plt(plts,'w_silhouette_pearson-clustering_eval-metric_vs_n_clusters_vs_silhouette','.pdf',figs_dir, width=5, height=5)
 }
 
 
@@ -416,6 +426,12 @@ main = function(){
     # visualize
     plts = make_plots(clustering_eval, mapping_eval, mapping_robust)
     figdata = make_figdata(clustering_eval, mapping_eval, mapping_robust)
+    
+    ## add plots using silhouette_pearson values
+    tmp_plts = plot_clustering_eval(clustering_eval %>% mutate(silhouette_euclidean = silhouette_pearson))
+    tmp_plts = tmp_plts[grep("silhouette", names(tmp_plts), value = TRUE)]
+    names(tmp_plts) = paste0("w_silhouette_pearson-", names(tmp_plts))
+    plts = c(plts, tmp_plts)
     
     # save
     save_plots(plts, figs_dir)
